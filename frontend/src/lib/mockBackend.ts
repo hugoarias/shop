@@ -219,7 +219,12 @@ export const mockApi = {
 
   // --- Productos ---
   async listActiveProducts(): Promise<Product[]> {
-    return delay(db.products.filter((p) => p.is_active).map(withExtras))
+    return delay(
+      db.products
+        .filter((p) => p.is_active)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+        .map(withExtras),
+    )
   },
   async listAllProducts(): Promise<Product[]> {
     return delay(

@@ -73,7 +73,7 @@ export const api = {
       .from('products')
       .select('*, variants:product_variants(*), price_tiers:product_price_tiers(*)')
       .eq('is_active', true)
-      .order('created_at', { ascending: false })
+      .order('name', { ascending: true })
       .order('sort_order', { foreignTable: 'product_variants' })
     if (error) throw error
     return data as Product[]
