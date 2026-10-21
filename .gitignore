@@ -1,0 +1,10 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Supabase CLI local state
+supabase/.branches
+supabase/.temp
+
+# Material de referencia de marca (no es parte del código del sitio)
+Manual de Marca AB 26.27.pdf

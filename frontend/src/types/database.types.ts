@@ -1,0 +1,55 @@
+export type UserRole = 'customer' | 'admin'
+
+export interface Profile {
+  id: string
+  full_name: string | null
+  email: string | null
+  avatar_url: string | null
+  role: UserRole
+  created_at: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  stock_quantity: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type OrderStatus = 'completed' | 'cancelled'
+
+export interface Order {
+  id: string
+  user_id: string
+  buyer_name: string
+  buyer_email: string
+  total: number
+  status: OrderStatus
+  created_at: string
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  product_id: string
+  quantity: number
+  unit_price: number
+}
+
+export interface OrderWithItems extends Order {
+  order_items: (OrderItem & { products: Pick<Product, 'name' | 'image_url'> | null })[]
+}
+
+export interface SalesReportRow {
+  buyer_name: string
+  buyer_email: string
+  total_orders: number
+  total_spent: number
+  first_purchase: string
+  last_purchase: string
+}

@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/500.css';
+@import '@fontsource/poppins/600.css';
+@import '@fontsource/poppins/700.css';
+@import '@fontsource/oleo-script/400.css';
+
+/* Identidad AIESEC Alumni Bolivia — Manual de Marca Polaris 26.27 */
+@theme {
+  --color-brand-primary: #004789;
+  --color-brand-secondary: #0192cc;
+  --color-brand-white: #ffffff;
+
+  --font-display: 'Oleo Script', cursive;
+  --font-sans: 'Poppins', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: #1a1a1a;
+  background: #f7f9fb;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
