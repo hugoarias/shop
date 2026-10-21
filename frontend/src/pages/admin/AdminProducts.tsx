@@ -50,7 +50,8 @@ export function AdminProducts() {
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-gray-50 text-gray-500">
             <tr>
               <th className="px-4 py-3">Producto</th>
@@ -119,6 +120,7 @@ export function AdminProducts() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

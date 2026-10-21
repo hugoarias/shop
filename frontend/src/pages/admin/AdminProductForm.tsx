@@ -248,12 +248,12 @@ export function AdminProductForm() {
         {hasVariants && (
           <div className="space-y-2 rounded-md border border-gray-200 p-3">
             {variantRows.map((row, index) => (
-              <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+              <div key={row.id ?? `new-${index}`} className="flex flex-wrap items-center gap-2">
                 <input
                   placeholder="Variante (ej. S, M, L, Blanco)"
                   value={row.name}
                   onChange={(e) => updateVariantRow(index, { name: e.target.value })}
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                 />
                 <input
                   type="number"
@@ -288,7 +288,7 @@ export function AdminProductForm() {
             Precio por cantidad (ej. 3x25Bs)
           </label>
           {tierRows.map((row, index) => (
-            <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+            <div key={row.id ?? `new-${index}`} className="flex flex-wrap items-center gap-2">
               <input
                 type="number"
                 min="2"
@@ -296,7 +296,7 @@ export function AdminProductForm() {
                 placeholder="Cantidad mínima"
                 value={row.min_quantity}
                 onChange={(e) => updateTierRow(index, { min_quantity: e.target.value })}
-                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                className="min-w-[120px] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
               <input
                 type="number"
@@ -305,7 +305,7 @@ export function AdminProductForm() {
                 placeholder="Precio del paquete (Bs.)"
                 value={row.bundle_price}
                 onChange={(e) => updateTierRow(index, { bundle_price: e.target.value })}
-                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                className="min-w-[120px] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
               <button
                 type="button"
