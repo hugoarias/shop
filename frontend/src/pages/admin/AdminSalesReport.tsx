@@ -285,7 +285,8 @@ export function AdminSalesReport() {
 
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Por comprador</h2>
       <div className="mb-8 overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-gray-50 text-gray-500">
             <tr>
               <th className="px-4 py-3"></th>
@@ -331,7 +332,8 @@ export function AdminSalesReport() {
                                 </div>
                                 <OrderProofActions group={group} onVerified={markOrderVerified} />
                               </div>
-                              <table className="w-full text-left text-xs">
+                              <div className="overflow-x-auto">
+                              <table className="w-full min-w-[480px] text-left text-xs">
                                 <thead className="text-gray-500">
                                   <tr>
                                     <th className="py-1 pr-3">Producto</th>
@@ -353,6 +355,7 @@ export function AdminSalesReport() {
                                   ))}
                                 </tbody>
                               </table>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -364,11 +367,13 @@ export function AdminSalesReport() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Resumen por producto</h2>
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="bg-gray-50 text-gray-500">
             <tr>
               <th className="px-4 py-3">Producto</th>
@@ -388,6 +393,7 @@ export function AdminSalesReport() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
