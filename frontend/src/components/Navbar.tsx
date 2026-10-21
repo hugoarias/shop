@@ -50,8 +50,8 @@ export function Navbar() {
           <NavLink to="/admin/productos" className={linkClasses} onClick={closeMenu}>
             <Icon path={icons.box} /> Productos
           </NavLink>
-          <NavLink to="/admin/reporte-ventas" className={linkClasses} onClick={closeMenu}>
-            <Icon path={icons.chart} /> Reporte de ventas
+          <NavLink to="/admin/reportes" className={linkClasses} onClick={closeMenu}>
+            <Icon path={icons.chart} /> Reportes
           </NavLink>
           <NavLink to="/admin/configuracion" className={linkClasses} onClick={closeMenu}>
             <Icon path={icons.gear} /> Configuración
