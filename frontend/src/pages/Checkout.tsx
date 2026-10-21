@@ -90,7 +90,7 @@ export function Checkout() {
             >
               <span>
                 {item.quantity} × {item.product.name}
-                {item.variant && ` (talla ${item.variant.name})`}
+                {item.variant && ` (${item.variant.name})`}
               </span>
               <span>
                 {formatCurrency(calcLineTotal(item.product.price_tiers, item.product.price, item.quantity))}

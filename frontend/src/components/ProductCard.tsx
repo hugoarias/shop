@@ -11,6 +11,7 @@ export function ProductCard({ product }: { product: Product }) {
   const activeVariants = (product.variants ?? []).filter((v) => v.is_active)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const cheapestTier = (product.price_tiers ?? []).slice().sort((a, b) => a.min_quantity - b.min_quantity)[0]
+  const totalVariantStock = activeVariants.reduce((sum, v) => sum + v.stock_quantity, 0)
 
   const selectedVariant = product.has_variants
     ? (activeVariants.find((v) => v.id === selectedVariantId) ?? null)
@@ -32,7 +33,7 @@ export function ProductCard({ product }: { product: Product }) {
 
   function handleAddToCart() {
     addItem(product, selectedVariant)
-    const label = selectedVariant ? `${product.name} (talla ${selectedVariant.name})` : product.name
+    const label = selectedVariant ? `${product.name} (${selectedVariant.name})` : product.name
     showToast(`${label} agregado al carrito`)
   }
 
@@ -60,11 +61,11 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="font-display text-xl text-brand-primary">
             {formatCurrency(product.price)}
           </span>
-          {!product.has_variants && (
-            <span className={`text-xs font-medium ${outOfStock ? 'text-red-600' : 'text-gray-500'}`}>
-              {outOfStock ? 'Sin stock' : `${product.stock_quantity} disponibles`}
-            </span>
-          )}
+          <span className={`text-xs font-medium ${outOfStock ? 'text-red-600' : 'text-gray-500'}`}>
+            {outOfStock
+              ? 'Sin stock'
+              : `${product.has_variants ? totalVariantStock : product.stock_quantity} disponibles`}
+          </span>
         </div>
 
         {cheapestTier && (
@@ -103,6 +104,12 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
         )}
 
+        {selectedVariant && (
+          <p className="text-xs text-gray-500">
+            Quedan {selectedVariant.stock_quantity} disponibles ({selectedVariant.name})
+          </p>
+        )}
+
         <button
           onClick={handleAddToCart}
           disabled={outOfStock || needsSelection || atLimit}
@@ -111,7 +118,7 @@ export function ProductCard({ product }: { product: Product }) {
           {outOfStock
             ? 'Sin stock'
             : needsSelection
-              ? 'Elige una talla'
+              ? 'Elige una opción'
               : atLimit
                 ? 'Máximo en carrito'
                 : 'Agregar al carrito'}

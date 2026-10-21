@@ -125,7 +125,7 @@ export function AdminProductForm() {
         await api.deleteVariant(variantId)
       } catch {
         await api.updateVariant(variantId, { is_active: false })
-        showToast('Una talla con ventas registradas se desactivó en vez de eliminarse')
+        showToast('Una variante con ventas registradas se desactivó en vez de eliminarse')
       }
     }
   }
@@ -242,7 +242,7 @@ export function AdminProductForm() {
             onChange={(e) => toggleHasVariants(e.target.checked)}
             className="h-4 w-4 rounded border-gray-300"
           />
-          Tiene variantes (ej. tallas)
+          Tiene variantes (ej. tallas, colores)
         </label>
 
         {hasVariants && (
@@ -250,7 +250,7 @@ export function AdminProductForm() {
             {variantRows.map((row, index) => (
               <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
                 <input
-                  placeholder="Talla (ej. S, M, L)"
+                  placeholder="Variante (ej. S, M, L, Blanco)"
                   value={row.name}
                   onChange={(e) => updateVariantRow(index, { name: e.target.value })}
                   className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
@@ -278,7 +278,7 @@ export function AdminProductForm() {
               onClick={addVariantRow}
               className="text-sm font-medium text-brand-secondary hover:underline"
             >
-              + Agregar talla
+              + Agregar variante
             </button>
           </div>
         )}

@@ -377,11 +377,11 @@ export const mockApi = {
       const product = db.products.find((p) => p.id === product_id)
       if (!product) throw new Error(`Producto ${product_id} no disponible`)
       if (product.has_variants) {
-        if (!variant_id) throw new Error(`Debes elegir una talla para ${product.name}`)
+        if (!variant_id) throw new Error(`Debes elegir una opción para ${product.name}`)
         const variant = db.productVariants.find((v) => v.id === variant_id && v.product_id === product_id)
         if (!variant || !variant.is_active) throw new Error(`Variante no disponible para ${product.name}`)
         if (variant.stock_quantity < quantity) {
-          throw new Error(`Stock insuficiente para ${product.name} (talla ${variant.name})`)
+          throw new Error(`Stock insuficiente para ${product.name} (${variant.name})`)
         }
       } else if (product.stock_quantity < quantity) {
         throw new Error(`Stock insuficiente para ${product.name}`)

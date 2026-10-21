@@ -128,7 +128,7 @@ export function MyOrders() {
                 <li key={item.id} className="flex justify-between py-1.5 text-sm text-gray-700">
                   <span>
                     {item.quantity} × {item.products?.name ?? 'Producto eliminado'}
-                    {item.variant_name && ` (talla ${item.variant_name})`}
+                    {item.variant_name && ` (${item.variant_name})`}
                   </span>
                   <span>{formatCurrency(item.line_total ?? item.quantity * item.unit_price)}</span>
                 </li>

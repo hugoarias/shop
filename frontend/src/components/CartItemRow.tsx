@@ -23,7 +23,7 @@ export function CartItemRow({ item }: { item: CartItem }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-gray-900">
           {product.name}
-          {variant && <span className="font-normal text-gray-500"> · Talla {variant.name}</span>}
+          {variant && <span className="font-normal text-gray-500"> · {variant.name}</span>}
         </p>
         <p className="text-sm text-gray-500">{formatCurrency(product.price)} c/u</p>
       </div>
