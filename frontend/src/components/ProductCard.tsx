@@ -1,13 +1,20 @@
 import type { Product } from '../types/database.types'
 import { formatCurrency } from '../lib/format'
 import { useCart } from '../context/CartContext'
+import { useToast } from '../context/ToastContext'
 import { ZoomableImage } from './ZoomableImage'
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem, items } = useCart()
+  const { showToast } = useToast()
   const inCart = items.find((item) => item.product.id === product.id)?.quantity ?? 0
   const outOfStock = product.stock_quantity <= 0
   const atLimit = inCart >= product.stock_quantity
+
+  function handleAddToCart() {
+    addItem(product)
+    showToast(`${product.name} agregado al carrito`)
+  }
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
@@ -40,7 +47,7 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         </div>
         <button
-          onClick={() => addItem(product)}
+          onClick={handleAddToCart}
           disabled={outOfStock || atLimit}
           className="mt-2 rounded-md bg-brand-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
