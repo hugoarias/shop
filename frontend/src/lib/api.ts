@@ -205,9 +205,12 @@ export const api = {
 
   async listMyOrders(): Promise<OrderWithItems[]> {
     if (isMock) return mockApi.listMyOrders()
+    const { data: userData } = await supabase!.auth.getUser()
+    if (!userData.user) return []
     const { data, error } = await supabase!
       .from('orders')
       .select('*, order_items(*, products(name, image_url))')
+      .eq('user_id', userData.user.id)
       .order('created_at', { ascending: false })
     if (error) throw error
     return data as unknown as OrderWithItems[]
