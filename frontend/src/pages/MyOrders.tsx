@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { api } from '../lib/api'
 import type { OrderWithItems } from '../types/database.types'
 import { formatCurrency, formatDate } from '../lib/format'
 
@@ -10,15 +10,16 @@ export function MyOrders() {
 
   useEffect(() => {
     let cancelled = false
-    supabase
-      .from('orders')
-      .select('*, order_items(*, products(name, image_url))')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) setError(error.message)
-        else setOrders(data as unknown as OrderWithItems[])
-        setLoading(false)
+    api
+      .listMyOrders()
+      .then((data) => {
+        if (!cancelled) setOrders(data)
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true

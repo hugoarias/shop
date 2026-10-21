@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabaseClient'
+import { api } from '../lib/api'
 import { formatCurrency } from '../lib/format'
 
 export function Checkout() {
@@ -31,16 +31,15 @@ export function Checkout() {
       quantity: item.quantity,
     }))
 
-    const { data: orderId, error } = await supabase.rpc('checkout', { cart_items })
-
-    setSubmitting(false)
-    if (error) {
-      setError(error.message)
-      return
+    try {
+      const orderId = await api.checkout(cart_items)
+      clear()
+      navigate('/mis-compras', { state: { newOrderId: orderId } })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo completar la compra')
+    } finally {
+      setSubmitting(false)
     }
-
-    clear()
-    navigate('/mis-compras', { state: { newOrderId: orderId as string } })
   }
 
   return (

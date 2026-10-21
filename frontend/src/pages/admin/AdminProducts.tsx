@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../../lib/supabaseClient'
+import { api } from '../../lib/api'
 import type { Product } from '../../types/database.types'
 import { formatCurrency } from '../../lib/format'
 
@@ -11,13 +11,13 @@ export function AdminProducts() {
 
   async function load() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (error) setError(error.message)
-    else setProducts(data as Product[])
-    setLoading(false)
+    try {
+      setProducts(await api.listAllProducts())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar productos')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -25,15 +25,12 @@ export function AdminProducts() {
   }, [])
 
   async function toggleActive(product: Product) {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: !product.is_active })
-      .eq('id', product.id)
-    if (error) {
-      setError(error.message)
-      return
+    try {
+      await api.setProductActive(product.id, !product.is_active)
+      void load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al actualizar el producto')
     }
-    void load()
   }
 
   if (loading) return <p className="p-6 text-center text-gray-500">Cargando…</p>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { api } from '../lib/api'
 import type { Product } from '../types/database.types'
 import { ProductCard } from '../components/ProductCard'
 
@@ -11,16 +11,16 @@ export function Catalog() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) setError(error.message)
-        else setProducts(data as Product[])
-        setLoading(false)
+    api
+      .listActiveProducts()
+      .then((data) => {
+        if (!cancelled) setProducts(data)
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true

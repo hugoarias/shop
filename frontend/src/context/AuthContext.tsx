@@ -1,11 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabaseClient'
+import { auth, api, type AuthUser } from '../lib/api'
 import type { Profile } from '../types/database.types'
 
 interface AuthContextValue {
-  session: Session | null
-  user: User | null
+  user: AuthUser | null
   profile: Profile | null
   loading: boolean
   isAdmin: boolean
@@ -16,65 +14,45 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    auth.getUser().then((u) => {
+      setUser(u)
       setLoading(false)
     })
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession)
-    })
-
-    return () => subscription.subscription.unsubscribe()
+    const unsubscribe = auth.onChange((u) => setUser(u))
+    return unsubscribe
   }, [])
 
   useEffect(() => {
-    const userId = session?.user.id
-    if (!userId) {
+    if (!user) {
       setProfile(null)
       return
     }
-
     let cancelled = false
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('No se pudo cargar el perfil:', error.message)
-          return
-        }
-        setProfile(data as Profile)
-      })
-
+    api.getProfile(user.id).then((p) => {
+      if (!cancelled) setProfile(p)
+    })
     return () => {
       cancelled = true
     }
-  }, [session?.user.id])
+  }, [user])
 
   async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
-    })
+    await auth.signInWithGoogle()
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    await auth.signOut()
     setProfile(null)
   }
 
   const value: AuthContextValue = {
-    session,
-    user: session?.user ?? null,
+    user,
     profile,
     loading,
     isAdmin: profile?.role === 'admin',

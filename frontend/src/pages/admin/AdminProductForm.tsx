@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { supabase } from '../../lib/supabaseClient'
-import type { Product } from '../../types/database.types'
+import { api } from '../../lib/api'
 
 const emptyForm = {
   name: '',
@@ -22,18 +21,14 @@ export function AdminProductForm() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isEditing) return
-    supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.message)
+    if (!isEditing || !id) return
+    api
+      .getProduct(id)
+      .then((product) => {
+        if (!product) {
+          setError('Producto no encontrado')
           return
         }
-        const product = data as Product
         setForm({
           name: product.name,
           description: product.description ?? '',
@@ -42,18 +37,12 @@ export function AdminProductForm() {
         })
         setImageUrl(product.image_url)
       })
+      .catch((err: Error) => setError(err.message))
   }, [id, isEditing])
 
   async function uploadImageIfNeeded(): Promise<string | null> {
     if (!imageFile) return imageUrl
-    const ext = imageFile.name.split('.').pop()
-    const path = `products/${crypto.randomUUID()}.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from('product-images')
-      .upload(path, imageFile, { upsert: false })
-    if (uploadError) throw uploadError
-    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
-    return data.publicUrl
+    return api.uploadProductImage(imageFile)
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -62,19 +51,13 @@ export function AdminProductForm() {
     setError(null)
     try {
       const finalImageUrl = await uploadImageIfNeeded()
-      const payload = {
+      await api.saveProduct(id, {
         name: form.name.trim(),
         description: form.description.trim() || null,
         price: Number(form.price),
         stock_quantity: Number(form.stock_quantity),
         image_url: finalImageUrl,
-      }
-
-      const { error: saveError } = isEditing
-        ? await supabase.from('products').update(payload).eq('id', id)
-        : await supabase.from('products').insert(payload)
-
-      if (saveError) throw saveError
+      })
       navigate('/admin/productos')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar el producto')

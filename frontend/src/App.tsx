@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { CartProvider } from './context/CartContext'
 import { Navbar } from './components/Navbar'
+import { DemoBanner } from './components/DemoBanner'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { AdminRoute } from './routes/AdminRoute'
 import { Catalog } from './pages/Catalog'
@@ -18,6 +19,7 @@ export default function App() {
     <AuthProvider>
       <CartProvider>
         <HashRouter>
+          <DemoBanner />
           <Navbar />
           <main className="flex-1">
             <Routes>

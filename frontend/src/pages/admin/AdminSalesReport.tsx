@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabaseClient'
+import { api } from '../../lib/api'
 import type { SalesReportRow } from '../../types/database.types'
 import { formatCurrency, formatDate } from '../../lib/format'
 
@@ -9,18 +9,18 @@ export function AdminSalesReport() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('sales_report')
-      .select('*')
-      .then(({ data, error }) => {
-        if (error) setError(error.message)
-        else setRows(data as SalesReportRow[])
-        setLoading(false)
-      })
+    api
+      .listSalesReport()
+      .then(setRows)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false))
   }, [])
 
   if (loading) return <p className="p-6 text-center text-gray-500">Cargando reporte…</p>
   if (error) return <p className="p-6 text-center text-red-600">Error: {error}</p>
+
+  if (rows.length === 0)
+    return <p className="p-6 text-center text-gray-500">Todavía no hay ventas registradas.</p>
 
   const grandTotal = rows.reduce((sum, row) => sum + row.total_spent, 0)
 

@@ -8,6 +8,16 @@ Carrito de compras institucional: catálogo con imágenes y stock, login con Goo
 
 Todo gratis, sin tarjeta de crédito.
 
+## Probarlo ya mismo, sin configurar nada (modo demo)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Si no existe `frontend/.env.local`, la app detecta que faltan las credenciales de Supabase y arranca sola en **modo demo**: productos, login y compras quedan simulados en memoria (persistidos en `localStorage` de tu navegador), con un aviso amarillo arriba y un botón para reiniciar los datos de prueba. Es la forma más rápida de ver el catálogo, el carrito, el checkout, "mis compras" y el panel de admin con la identidad de marca ya aplicada — sin crear ninguna cuenta. En cuanto completes los pasos 1 y 2 de abajo y agregues `.env.local`, la app pasa a usar el backend real de Supabase automáticamente.
+
 ## 1. Crear el proyecto en Supabase
 
 1. Crea una cuenta/proyecto gratis en [supabase.com](https://supabase.com).
