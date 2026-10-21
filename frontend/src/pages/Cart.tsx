@@ -23,7 +23,7 @@ export function Cart() {
       <h1 className="font-display mb-6 text-3xl text-brand-primary">Carrito</h1>
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         {items.map((item) => (
-          <CartItemRow key={item.product.id} item={item} />
+          <CartItemRow key={`${item.product.id}:${item.variant?.id ?? 'base'}`} item={item} />
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between">

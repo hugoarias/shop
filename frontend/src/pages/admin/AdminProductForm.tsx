@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../lib/api'
+import { useToast } from '../../context/ToastContext'
 
 const emptyForm = {
   name: '',
@@ -9,12 +10,22 @@ const emptyForm = {
   stock_quantity: '',
 }
 
+interface VariantRow {
+  id?: string
+  name: string
+  stock_quantity: string
+}
+
 export function AdminProductForm() {
   const { id } = useParams()
   const isEditing = Boolean(id)
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const [form, setForm] = useState(emptyForm)
+  const [hasVariants, setHasVariants] = useState(false)
+  const [variantRows, setVariantRows] = useState<VariantRow[]>([])
+  const [originalVariantIds, setOriginalVariantIds] = useState<string[]>([])
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -36,13 +47,62 @@ export function AdminProductForm() {
           stock_quantity: String(product.stock_quantity),
         })
         setImageUrl(product.image_url)
+        setHasVariants(product.has_variants)
+        const variants = (product.variants ?? []).filter((v) => v.is_active)
+        setVariantRows(variants.map((v) => ({ id: v.id, name: v.name, stock_quantity: String(v.stock_quantity) })))
+        setOriginalVariantIds(variants.map((v) => v.id))
       })
       .catch((err: Error) => setError(err.message))
   }, [id, isEditing])
 
+  function toggleHasVariants(checked: boolean) {
+    setHasVariants(checked)
+    if (checked && variantRows.length === 0) {
+      setVariantRows([{ name: '', stock_quantity: form.stock_quantity || '0' }])
+    }
+  }
+
+  function updateVariantRow(index: number, patch: Partial<VariantRow>) {
+    setVariantRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  }
+
+  function removeVariantRow(index: number) {
+    setVariantRows((rows) => rows.filter((_, i) => i !== index))
+  }
+
+  function addVariantRow() {
+    setVariantRows((rows) => [...rows, { name: '', stock_quantity: '0' }])
+  }
+
   async function uploadImageIfNeeded(): Promise<string | null> {
     if (!imageFile) return imageUrl
     return api.uploadProductImage(imageFile)
+  }
+
+  async function saveVariants(productId: string) {
+    const currentIds = new Set<string>()
+
+    for (const [index, row] of variantRows.entries()) {
+      const name = row.name.trim()
+      if (!name) continue
+      const stock_quantity = Number(row.stock_quantity) || 0
+      if (row.id) {
+        currentIds.add(row.id)
+        await api.updateVariant(row.id, { name, stock_quantity, sort_order: index + 1 })
+      } else {
+        await api.createVariant(productId, { name, stock_quantity, sort_order: index + 1 })
+      }
+    }
+
+    const removedIds = originalVariantIds.filter((vid) => !currentIds.has(vid))
+    for (const variantId of removedIds) {
+      try {
+        await api.deleteVariant(variantId)
+      } catch {
+        await api.updateVariant(variantId, { is_active: false })
+        showToast('Una talla con ventas registradas se desactivó en vez de eliminarse')
+      }
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -51,13 +111,19 @@ export function AdminProductForm() {
     setError(null)
     try {
       const finalImageUrl = await uploadImageIfNeeded()
-      await api.saveProduct(id, {
+      const productId = await api.saveProduct(id, {
         name: form.name.trim(),
         description: form.description.trim() || null,
         price: Number(form.price),
-        stock_quantity: Number(form.stock_quantity),
+        stock_quantity: hasVariants ? 0 : Number(form.stock_quantity),
         image_url: finalImageUrl,
+        has_variants: hasVariants,
       })
+
+      if (hasVariants) {
+        await saveVariants(productId)
+      }
+
       navigate('/admin/productos')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar el producto')
@@ -106,19 +172,69 @@ export function AdminProductForm() {
               className="w-full rounded-md border border-gray-300 px-3 py-2"
             />
           </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Stock</label>
-            <input
-              required
-              type="number"
-              min="0"
-              step="1"
-              value={form.stock_quantity}
-              onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2"
-            />
-          </div>
+          {!hasVariants && (
+            <div className="flex-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Stock</label>
+              <input
+                required
+                type="number"
+                min="0"
+                step="1"
+                value={form.stock_quantity}
+                onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </div>
+          )}
         </div>
+
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={hasVariants}
+            onChange={(e) => toggleHasVariants(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          Tiene variantes (ej. tallas)
+        </label>
+
+        {hasVariants && (
+          <div className="space-y-2 rounded-md border border-gray-200 p-3">
+            {variantRows.map((row, index) => (
+              <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+                <input
+                  placeholder="Talla (ej. S, M, L)"
+                  value={row.name}
+                  onChange={(e) => updateVariantRow(index, { name: e.target.value })}
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Stock"
+                  value={row.stock_quantity}
+                  onChange={(e) => updateVariantRow(index, { stock_quantity: e.target.value })}
+                  className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeVariantRow(index)}
+                  className="text-sm font-medium text-red-600 hover:underline"
+                >
+                  Quitar
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addVariantRow}
+              className="text-sm font-medium text-brand-secondary hover:underline"
+            >
+              + Agregar talla
+            </button>
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Imagen</label>

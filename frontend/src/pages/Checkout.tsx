@@ -29,6 +29,7 @@ export function Checkout() {
     const cart_items = items.map((item) => ({
       product_id: item.product.id,
       quantity: item.quantity,
+      variant_id: item.variant?.id ?? null,
     }))
 
     try {
@@ -52,9 +53,13 @@ export function Checkout() {
 
         <ul className="mb-4 divide-y divide-gray-100">
           {items.map((item) => (
-            <li key={item.product.id} className="flex justify-between py-2 text-sm">
+            <li
+              key={`${item.product.id}:${item.variant?.id ?? 'base'}`}
+              className="flex justify-between py-2 text-sm"
+            >
               <span>
                 {item.quantity} × {item.product.name}
+                {item.variant && ` (talla ${item.variant.name})`}
               </span>
               <span>{formatCurrency(item.quantity * item.product.price)}</span>
             </li>

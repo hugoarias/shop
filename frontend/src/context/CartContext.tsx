@@ -1,16 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Product } from '../types/database.types'
+import type { Product, ProductVariant } from '../types/database.types'
 
 export interface CartItem {
   product: Product
+  variant: ProductVariant | null
   quantity: number
 }
 
 interface CartContextValue {
   items: CartItem[]
-  addItem: (product: Product, quantity?: number) => void
-  removeItem: (productId: string) => void
-  setQuantity: (productId: string, quantity: number) => void
+  addItem: (product: Product, variant: ProductVariant | null, quantity?: number) => void
+  removeItem: (productId: string, variantId: string | null) => void
+  setQuantity: (productId: string, variantId: string | null, quantity: number) => void
   clear: () => void
   totalItems: number
   totalAmount: number
@@ -18,6 +19,14 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | undefined>(undefined)
 const STORAGE_KEY = 'aab-carrito:cart'
+
+function sameLine(item: CartItem, productId: string, variantId: string | null) {
+  return item.product.id === productId && (item.variant?.id ?? null) === variantId
+}
+
+function maxStock(item: Pick<CartItem, 'product' | 'variant'>): number {
+  return item.variant ? item.variant.stock_quantity : item.product.stock_quantity
+}
 
 function loadFromStorage(): CartItem[] {
   try {
@@ -39,30 +48,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [items])
 
-  function addItem(product: Product, quantity = 1) {
+  function addItem(product: Product, variant: ProductVariant | null, quantity = 1) {
     setItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id)
-      const maxQty = product.stock_quantity
+      const variantId = variant?.id ?? null
+      const existing = prev.find((item) => sameLine(item, product.id, variantId))
+      const limit = variant ? variant.stock_quantity : product.stock_quantity
       if (existing) {
-        const nextQty = Math.min(existing.quantity + quantity, maxQty)
+        const nextQty = Math.min(existing.quantity + quantity, limit)
         return prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: nextQty } : item,
+          sameLine(item, product.id, variantId) ? { ...item, quantity: nextQty } : item,
         )
       }
-      return [...prev, { product, quantity: Math.min(quantity, maxQty) }]
+      return [...prev, { product, variant, quantity: Math.min(quantity, limit) }]
     })
   }
 
-  function removeItem(productId: string) {
-    setItems((prev) => prev.filter((item) => item.product.id !== productId))
+  function removeItem(productId: string, variantId: string | null) {
+    setItems((prev) => prev.filter((item) => !sameLine(item, productId, variantId)))
   }
 
-  function setQuantity(productId: string, quantity: number) {
+  function setQuantity(productId: string, variantId: string | null, quantity: number) {
     setItems((prev) =>
       prev
         .map((item) =>
-          item.product.id === productId
-            ? { ...item, quantity: Math.max(1, Math.min(quantity, item.product.stock_quantity)) }
+          sameLine(item, productId, variantId)
+            ? { ...item, quantity: Math.max(1, Math.min(quantity, maxStock(item))) }
             : item,
         )
         .filter((item) => item.quantity > 0),

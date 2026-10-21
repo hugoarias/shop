@@ -9,6 +9,17 @@ export interface Profile {
   created_at: string
 }
 
+export interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  stock_quantity: number
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -17,6 +28,8 @@ export interface Product {
   image_url: string | null
   stock_quantity: number
   is_active: boolean
+  has_variants: boolean
+  variants?: ProductVariant[]
   created_at: string
   updated_at: string
 }
@@ -37,6 +50,8 @@ export interface OrderItem {
   id: string
   order_id: string
   product_id: string
+  variant_id: string | null
+  variant_name: string | null
   quantity: number
   unit_price: number
 }

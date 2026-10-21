@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Product } from '../types/database.types'
 import { formatCurrency } from '../lib/format'
 import { useCart } from '../context/CartContext'
@@ -7,13 +8,31 @@ import { ZoomableImage } from './ZoomableImage'
 export function ProductCard({ product }: { product: Product }) {
   const { addItem, items } = useCart()
   const { showToast } = useToast()
-  const inCart = items.find((item) => item.product.id === product.id)?.quantity ?? 0
-  const outOfStock = product.stock_quantity <= 0
-  const atLimit = inCart >= product.stock_quantity
+  const activeVariants = (product.variants ?? []).filter((v) => v.is_active)
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+
+  const selectedVariant = product.has_variants
+    ? (activeVariants.find((v) => v.id === selectedVariantId) ?? null)
+    : null
+
+  const inCart =
+    items.find(
+      (item) =>
+        item.product.id === product.id &&
+        (item.variant?.id ?? null) === (selectedVariant?.id ?? null),
+    )?.quantity ?? 0
+
+  const noVariantsAvailable =
+    product.has_variants && (activeVariants.length === 0 || activeVariants.every((v) => v.stock_quantity <= 0))
+  const outOfStock = product.has_variants ? noVariantsAvailable : product.stock_quantity <= 0
+  const needsSelection = product.has_variants && !outOfStock && !selectedVariant
+  const stockForSelection = selectedVariant ? selectedVariant.stock_quantity : product.stock_quantity
+  const atLimit = !needsSelection && !outOfStock && inCart >= stockForSelection
 
   function handleAddToCart() {
-    addItem(product)
-    showToast(`${product.name} agregado al carrito`)
+    addItem(product, selectedVariant)
+    const label = selectedVariant ? `${product.name} (talla ${selectedVariant.name})` : product.name
+    showToast(`${label} agregado al carrito`)
   }
 
   return (
@@ -40,18 +59,55 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="font-display text-xl text-brand-primary">
             {formatCurrency(product.price)}
           </span>
-          <span
-            className={`text-xs font-medium ${outOfStock ? 'text-red-600' : 'text-gray-500'}`}
-          >
-            {outOfStock ? 'Sin stock' : `${product.stock_quantity} disponibles`}
-          </span>
+          {!product.has_variants && (
+            <span className={`text-xs font-medium ${outOfStock ? 'text-red-600' : 'text-gray-500'}`}>
+              {outOfStock ? 'Sin stock' : `${product.stock_quantity} disponibles`}
+            </span>
+          )}
         </div>
+
+        {product.has_variants && (
+          <div className="flex flex-wrap gap-1.5">
+            {noVariantsAvailable ? (
+              <span className="text-xs font-medium text-red-600">Sin stock</span>
+            ) : (
+              activeVariants.map((variant) => {
+                const disabled = variant.stock_quantity <= 0
+                const selected = selectedVariantId === variant.id
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setSelectedVariantId(variant.id)}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      disabled
+                        ? 'cursor-not-allowed border-gray-200 text-gray-300 line-through'
+                        : selected
+                          ? 'border-brand-primary bg-brand-primary text-white'
+                          : 'border-gray-300 text-gray-700 hover:border-brand-primary'
+                    }`}
+                  >
+                    {variant.name}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        )}
+
         <button
           onClick={handleAddToCart}
-          disabled={outOfStock || atLimit}
+          disabled={outOfStock || needsSelection || atLimit}
           className="mt-2 rounded-md bg-brand-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {outOfStock ? 'Sin stock' : atLimit ? 'Máximo en carrito' : 'Agregar al carrito'}
+          {outOfStock
+            ? 'Sin stock'
+            : needsSelection
+              ? 'Elige una talla'
+              : atLimit
+                ? 'Máximo en carrito'
+                : 'Agregar al carrito'}
         </button>
       </div>
     </div>

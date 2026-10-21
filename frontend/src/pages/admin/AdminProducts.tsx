@@ -73,10 +73,23 @@ export function AdminProducts() {
                       />
                     )}
                   </div>
-                  {product.name}
+                  <div>
+                    {product.name}
+                    {product.has_variants && (
+                      <span className="ml-2 rounded-full bg-brand-secondary/10 px-2 py-0.5 text-xs font-medium text-brand-secondary">
+                        Con variantes
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">{formatCurrency(product.price)}</td>
-                <td className="px-4 py-3">{product.stock_quantity}</td>
+                <td className="px-4 py-3">
+                  {product.has_variants
+                    ? (product.variants ?? [])
+                        .filter((v) => v.is_active)
+                        .reduce((sum, v) => sum + v.stock_quantity, 0)
+                    : product.stock_quantity}
+                </td>
                 <td className="px-4 py-3">
                   <button
                     onClick={() => void toggleActive(product)}

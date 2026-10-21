@@ -2,6 +2,7 @@ import type {
   Order,
   OrderWithItems,
   Product,
+  ProductVariant,
   Profile,
   SalesReportRow,
 } from '../types/database.types'
@@ -26,6 +27,7 @@ function placeholderImage(label: string, bg: string): string {
 
 interface MockDb {
   products: Product[]
+  productVariants: ProductVariant[]
   orders: OrderWithItems[]
   signedIn: boolean
 }
@@ -46,11 +48,12 @@ function seedDb(): MockDb {
       {
         id: 'prod-1',
         name: 'Polera AAB',
-        description: 'Polera institucional AIESEC Alumni Bolivia, talla única.',
+        description: 'Polera institucional AIESEC Alumni Bolivia. Elige tu talla.',
         price: 80,
         image_url: placeholderImage('Polera AAB', '004789'),
-        stock_quantity: 20,
+        stock_quantity: 0,
         is_active: true,
+        has_variants: true,
         created_at: now,
         updated_at: now,
       },
@@ -62,6 +65,7 @@ function seedDb(): MockDb {
         image_url: placeholderImage('Taza AAB', '0192CC'),
         stock_quantity: 15,
         is_active: true,
+        has_variants: false,
         created_at: now,
         updated_at: now,
       },
@@ -73,6 +77,7 @@ function seedDb(): MockDb {
         image_url: placeholderImage('Mochila AAB', '004789'),
         stock_quantity: 1,
         is_active: true,
+        has_variants: false,
         created_at: now,
         updated_at: now,
       },
@@ -84,9 +89,16 @@ function seedDb(): MockDb {
         image_url: placeholderImage('Botella AAB', '6b7280'),
         stock_quantity: 0,
         is_active: true,
+        has_variants: false,
         created_at: now,
         updated_at: now,
       },
+    ],
+    productVariants: [
+      { id: 'var-1', product_id: 'prod-1', name: 'S', stock_quantity: 3, is_active: true, sort_order: 1, created_at: now, updated_at: now },
+      { id: 'var-2', product_id: 'prod-1', name: 'M', stock_quantity: 5, is_active: true, sort_order: 2, created_at: now, updated_at: now },
+      { id: 'var-3', product_id: 'prod-1', name: 'L', stock_quantity: 0, is_active: true, sort_order: 3, created_at: now, updated_at: now },
+      { id: 'var-4', product_id: 'prod-1', name: 'XL', stock_quantity: 2, is_active: true, sort_order: 4, created_at: now, updated_at: now },
     ],
     orders: [],
     signedIn: false,
@@ -97,7 +109,12 @@ function load(): MockDb {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return seedDb()
-    return JSON.parse(raw) as MockDb
+    const parsed = JSON.parse(raw) as Partial<MockDb>
+    // Compatibilidad con localStorage de versiones anteriores sin variantes.
+    if (!parsed.productVariants || !parsed.products?.[0] || !('has_variants' in parsed.products[0])) {
+      return seedDb()
+    }
+    return parsed as MockDb
   } catch {
     return seedDb()
   }
@@ -115,6 +132,15 @@ function persist() {
 
 function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+}
+
+function withVariants(product: Product): Product {
+  return {
+    ...product,
+    variants: db.productVariants
+      .filter((v) => v.product_id === product.id)
+      .sort((a, b) => a.sort_order - b.sort_order),
+  }
 }
 
 type AuthListener = (signedIn: boolean) => void
@@ -150,15 +176,20 @@ export const mockApi = {
 
   // --- Productos ---
   async listActiveProducts(): Promise<Product[]> {
-    return delay(db.products.filter((p) => p.is_active))
+    return delay(db.products.filter((p) => p.is_active).map(withVariants))
   },
   async listAllProducts(): Promise<Product[]> {
-    return delay([...db.products].sort((a, b) => b.created_at.localeCompare(a.created_at)))
+    return delay(
+      [...db.products].sort((a, b) => b.created_at.localeCompare(a.created_at)).map(withVariants),
+    )
   },
   async getProduct(id: string): Promise<Product | undefined> {
-    return delay(db.products.find((p) => p.id === id))
+    const product = db.products.find((p) => p.id === id)
+    return delay(product ? withVariants(product) : undefined)
   },
-  async createProduct(payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'is_active'>) {
+  async createProduct(
+    payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'is_active' | 'variants'>,
+  ) {
     const now = new Date().toISOString()
     const product: Product = {
       ...payload,
@@ -188,28 +219,86 @@ export const mockApi = {
     })
   },
 
-  // --- Checkout / órdenes ---
-  async checkout(cartItems: { product_id: string; quantity: number }[]): Promise<string> {
-    let total = 0
-    const items: OrderWithItems['order_items'] = []
+  // --- Variantes ---
+  async createVariant(productId: string, payload: { name: string; stock_quantity: number; sort_order?: number }) {
+    const now = new Date().toISOString()
+    const nextOrder =
+      payload.sort_order ??
+      db.productVariants.filter((v) => v.product_id === productId).length + 1
+    const variant: ProductVariant = {
+      id: crypto.randomUUID(),
+      product_id: productId,
+      name: payload.name,
+      stock_quantity: payload.stock_quantity,
+      is_active: true,
+      sort_order: nextOrder,
+      created_at: now,
+      updated_at: now,
+    }
+    db.productVariants.push(variant)
+    persist()
+    return delay(variant)
+  },
+  async updateVariant(id: string, payload: Partial<ProductVariant>) {
+    db.productVariants = db.productVariants.map((v) =>
+      v.id === id ? { ...v, ...payload, updated_at: new Date().toISOString() } : v,
+    )
+    persist()
+    return delay(undefined)
+  },
+  async deleteVariant(id: string) {
+    const hasSales = db.orders.some((o) => o.order_items.some((item) => item.variant_id === id))
+    if (hasSales) {
+      throw new Error('No se puede eliminar: esta variante ya tiene ventas registradas')
+    }
+    db.productVariants = db.productVariants.filter((v) => v.id !== id)
+    persist()
+    return delay(undefined)
+  },
 
-    for (const { product_id, quantity } of cartItems) {
+  // --- Checkout / órdenes ---
+  async checkout(
+    cartItems: { product_id: string; quantity: number; variant_id: string | null }[],
+  ): Promise<string> {
+    for (const { product_id, quantity, variant_id } of cartItems) {
       const product = db.products.find((p) => p.id === product_id)
       if (!product) throw new Error(`Producto ${product_id} no disponible`)
-      if (product.stock_quantity < quantity) {
+      if (product.has_variants) {
+        if (!variant_id) throw new Error(`Debes elegir una talla para ${product.name}`)
+        const variant = db.productVariants.find((v) => v.id === variant_id && v.product_id === product_id)
+        if (!variant || !variant.is_active) throw new Error(`Variante no disponible para ${product.name}`)
+        if (variant.stock_quantity < quantity) {
+          throw new Error(`Stock insuficiente para ${product.name} (talla ${variant.name})`)
+        }
+      } else if (product.stock_quantity < quantity) {
         throw new Error(`Stock insuficiente para ${product.name}`)
       }
     }
 
-    for (const { product_id, quantity } of cartItems) {
+    let total = 0
+    const items: OrderWithItems['order_items'] = []
+
+    for (const { product_id, quantity, variant_id } of cartItems) {
       const product = db.products.find((p) => p.id === product_id)!
-      product.stock_quantity -= quantity
-      product.updated_at = new Date().toISOString()
+      let unitVariantName: string | null = null
+
+      if (product.has_variants && variant_id) {
+        const variant = db.productVariants.find((v) => v.id === variant_id)!
+        variant.stock_quantity -= quantity
+        variant.updated_at = new Date().toISOString()
+        unitVariantName = variant.name
+      } else {
+        product.stock_quantity -= quantity
+        product.updated_at = new Date().toISOString()
+      }
+
       total += product.price * quantity
       items.push({
         id: crypto.randomUUID(),
         order_id: '',
         product_id,
+        variant_id: variant_id ?? null,
+        variant_name: unitVariantName,
         quantity,
         unit_price: product.price,
         products: { name: product.name, image_url: product.image_url },

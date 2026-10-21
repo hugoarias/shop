@@ -1,6 +1,12 @@
 import { supabase, isMock } from './supabaseClient'
 import { mockApi } from './mockBackend'
-import type { Product, Profile, OrderWithItems, SalesReportRow } from '../types/database.types'
+import type {
+  Product,
+  ProductVariant,
+  Profile,
+  OrderWithItems,
+  SalesReportRow,
+} from '../types/database.types'
 
 export { isMock }
 
@@ -60,9 +66,10 @@ export const api = {
     if (isMock) return mockApi.listActiveProducts()
     const { data, error } = await supabase!
       .from('products')
-      .select('*')
+      .select('*, variants:product_variants(*)')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
+      .order('sort_order', { foreignTable: 'product_variants' })
     if (error) throw error
     return data as Product[]
   },
@@ -71,15 +78,21 @@ export const api = {
     if (isMock) return mockApi.listAllProducts()
     const { data, error } = await supabase!
       .from('products')
-      .select('*')
+      .select('*, variants:product_variants(*)')
       .order('created_at', { ascending: false })
+      .order('sort_order', { foreignTable: 'product_variants' })
     if (error) throw error
     return data as Product[]
   },
 
   async getProduct(id: string): Promise<Product | null> {
     if (isMock) return (await mockApi.getProduct(id)) ?? null
-    const { data, error } = await supabase!.from('products').select('*').eq('id', id).single()
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*, variants:product_variants(*)')
+      .eq('id', id)
+      .order('sort_order', { foreignTable: 'product_variants' })
+      .single()
     if (error) throw error
     return data as Product
   },
@@ -98,16 +111,50 @@ export const api = {
       price: number
       stock_quantity: number
       image_url: string | null
+      has_variants: boolean
     },
-  ) {
+  ): Promise<string> {
     if (isMock) {
-      if (id) await mockApi.updateProduct(id, payload)
-      else await mockApi.createProduct(payload)
-      return
+      if (id) {
+        await mockApi.updateProduct(id, payload)
+        return id
+      }
+      const created = await mockApi.createProduct(payload)
+      return created.id
     }
-    const { error } = id
-      ? await supabase!.from('products').update(payload).eq('id', id)
-      : await supabase!.from('products').insert(payload)
+    if (id) {
+      const { error } = await supabase!.from('products').update(payload).eq('id', id)
+      if (error) throw error
+      return id
+    }
+    const { data, error } = await supabase!.from('products').insert(payload).select('id').single()
+    if (error) throw error
+    return (data as { id: string }).id
+  },
+
+  async createVariant(
+    productId: string,
+    payload: { name: string; stock_quantity: number; sort_order?: number },
+  ) {
+    if (isMock) return mockApi.createVariant(productId, payload)
+    const { error } = await supabase!
+      .from('product_variants')
+      .insert({ product_id: productId, ...payload })
+    if (error) throw error
+  },
+
+  async updateVariant(
+    id: string,
+    payload: Partial<Pick<ProductVariant, 'name' | 'stock_quantity' | 'is_active' | 'sort_order'>>,
+  ) {
+    if (isMock) return mockApi.updateVariant(id, payload)
+    const { error } = await supabase!.from('product_variants').update(payload).eq('id', id)
+    if (error) throw error
+  },
+
+  async deleteVariant(id: string) {
+    if (isMock) return mockApi.deleteVariant(id)
+    const { error } = await supabase!.from('product_variants').delete().eq('id', id)
     if (error) throw error
   },
 
@@ -123,7 +170,9 @@ export const api = {
     return data.publicUrl
   },
 
-  async checkout(cartItems: { product_id: string; quantity: number }[]): Promise<string> {
+  async checkout(
+    cartItems: { product_id: string; quantity: number; variant_id: string | null }[],
+  ): Promise<string> {
     if (isMock) return mockApi.checkout(cartItems)
     const { data, error } = await supabase!.rpc('checkout', { cart_items: cartItems })
     if (error) throw error
