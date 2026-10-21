@@ -1,6 +1,7 @@
 import type { Product } from '../types/database.types'
 import { formatCurrency } from '../lib/format'
 import { useCart } from '../context/CartContext'
+import { ZoomableImage } from './ZoomableImage'
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem, items } = useCart()
@@ -12,7 +13,7 @@ export function ProductCard({ product }: { product: Product }) {
     <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <div className="aspect-square w-full bg-gray-100">
         {product.image_url ? (
-          <img
+          <ZoomableImage
             src={product.image_url}
             alt={product.name}
             className="h-full w-full object-cover"
