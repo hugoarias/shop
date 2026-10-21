@@ -18,7 +18,7 @@ export function Navbar() {
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <Logo variant="white" className="h-10 w-auto" />
           <span className="font-display text-xl leading-none hidden sm:inline">
-            Tienda AAB
+            Tienda RNA - Sucre
           </span>
         </Link>
 

@@ -2,8 +2,8 @@
 
 Carrito de compras institucional: catálogo con imágenes y stock, login con Google, checkout con descuento de stock atómico y reporte de ventas por comprador.
 
-- **Frontend**: React + Vite + Tailwind CSS, alojado gratis en **GitHub Pages**.
-- **Backend**: **Supabase** (Postgres + Auth + Storage), sin servidor propio que mantener — la lógica vive en el esquema SQL (`supabase/migrations/`).
+- **Frontend**: React + Vite + Tailwind CSS, alojado gratis en **GitHub Pages** (`hugoarias/shop` → `https://hugoarias.github.io/shop/`).
+- **Backend**: **Supabase** (Postgres + Auth + Storage), proyecto `tienda-aab` (`https://tadhnzajglbvlcldopgk.supabase.co`), sin servidor propio que mantener — la lógica vive en el esquema SQL (`supabase/migrations/`).
 - Identidad visual según el **Manual de Marca AIESEC Alumni Bolivia — Polaris 26.27**.
 
 Todo gratis, sin tarjeta de crédito.
@@ -16,65 +16,56 @@ npm install
 npm run dev
 ```
 
-Si no existe `frontend/.env.local`, la app detecta que faltan las credenciales de Supabase y arranca sola en **modo demo**: productos, login y compras quedan simulados en memoria (persistidos en `localStorage` de tu navegador), con un aviso amarillo arriba y un botón para reiniciar los datos de prueba. Es la forma más rápida de ver el catálogo, el carrito, el checkout, "mis compras" y el panel de admin con la identidad de marca ya aplicada — sin crear ninguna cuenta. En cuanto completes los pasos 1 y 2 de abajo y agregues `.env.local`, la app pasa a usar el backend real de Supabase automáticamente.
+Si no existe `frontend/.env.local`, la app detecta que faltan las credenciales de Supabase y arranca sola en **modo demo**: productos, login y compras quedan simulados en memoria (persistidos en `localStorage` de tu navegador), con un aviso amarillo arriba y un botón para reiniciar los datos de prueba. Es la forma más rápida de ver el catálogo, el carrito, el checkout, "mis compras" y el panel de admin con la identidad de marca ya aplicada — sin crear ninguna cuenta.
 
-## 1. Crear el proyecto en Supabase
+## Estado de la configuración
 
-1. Crea una cuenta/proyecto gratis en [supabase.com](https://supabase.com).
-2. Instala la CLI: `npm install -g supabase` (o `scoop install supabase` en Windows).
-3. Desde la raíz del repo: `supabase login`, luego `supabase link --project-ref <TU_PROJECT_REF>`.
-4. Aplica el esquema: `supabase db push` (corre las migraciones de `supabase/migrations/` en orden).
-5. En el dashboard de Supabase, ve a **Storage** → crea un bucket llamado `product-images` y márcalo como **público** (la migración `0005` asume que ya existe).
-6. (Opcional) Carga datos de prueba: `supabase db execute -f supabase/seed.sql` o pega el contenido en el SQL Editor del dashboard.
-7. Marca tu propio usuario como admin **después** de loguearte una vez por Google (ver paso 3 más abajo):
+Ya quedó hecho (vía Supabase Dashboard y Google Cloud Console):
+
+- ✅ Proyecto Supabase `tienda-aab` creado, con las 5 migraciones de `supabase/migrations/` aplicadas (tablas, RLS, checkout atómico, vista de reporte de ventas).
+- ✅ Bucket `product-images` creado como público con sus políticas de Storage.
+- ✅ Proyecto de Google Cloud `tienda-aab` creado, con la pantalla de consentimiento OAuth **publicada en producción** (cualquier cuenta de Google puede loguear, sin necesidad de agregarla a mano ni pasar por verificación — solo se piden datos básicos: nombre, correo, foto).
+- ✅ Cliente OAuth "Tienda AAB - Web" creado, con `http://localhost:5173` y `https://hugoarias.github.io` como orígenes autorizados, y el callback de Supabase registrado.
+- ✅ Proveedor Google activado en Supabase Auth con el Client ID/Secret.
+- ✅ Site URL y Redirect URLs de Supabase apuntando a `https://hugoarias.github.io/shop/` y a `http://localhost:5173`.
+- ✅ Página de política de privacidad (`frontend/public/privacy.html`), requerida por Google para publicar la app sin verificación.
+
+### Pendiente — pasos que te tocan a ti
+
+1. **Correr en local y marcarte como admin**:
+   ```bash
+   cd frontend
+   cp .env.example .env.local
+   # Completa VITE_SUPABASE_URL=https://tadhnzajglbvlcldopgk.supabase.co
+   # y VITE_SUPABASE_ANON_KEY=<tu publishable key, Supabase → Settings → API Keys>
+   npm install
+   npm run dev
+   ```
+   Abre `http://localhost:5173`, inicia sesión con Google, y en el **SQL Editor de Supabase** ejecuta:
    ```sql
    update public.profiles set role = 'admin' where email = 'tu-correo@gmail.com';
    ```
+   (vuelve a cargar la página para ver el panel de admin).
 
-## 2. Configurar login con Google
+2. **Subir el repo a GitHub** como `hugoarias/shop` (el nombre debe coincidir exactamente, porque `base` en `vite.config.ts` y las URLs de Google/Supabase ya están configuradas para `/shop/`).
 
-**En Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)):
-1. Crea un proyecto (o usa uno existente) → **APIs & Services → OAuth consent screen**: tipo *External*, agrega tu correo de soporte. Déjalo en **Testing** (solo los correos que agregues como "Test users" podrán loguear, sin revisión de Google) o publícalo si necesitas acceso abierto.
-2. **Credentials → Create Credentials → OAuth client ID → Web application**.
-3. **Authorized JavaScript origins**: `https://<tu-usuario>.github.io` y `http://localhost:5173` (desarrollo).
-4. **Authorized redirect URIs**: `https://<tu-project-ref>.supabase.co/auth/v1/callback` (lo encuentras en el dashboard de Supabase, ver paso siguiente).
-5. Copia el **Client ID** y **Client Secret**.
+3. En **Settings → Secrets and variables → Actions** del repo, crea los secrets `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (mismos valores del paso 1).
 
-**En el dashboard de Supabase**:
-1. **Authentication → Providers → Google**: actívalo y pega el Client ID/Secret.
-2. **Authentication → URL Configuration**: Site URL = `https://<tu-usuario>.github.io/carrito-de-compras/`; agrega esa misma URL (+ `/*`) y `http://localhost:5173/*` en Redirect URLs.
-3. **Project Settings → API**: copia el `Project URL` y el `anon public key` — los necesitas en el siguiente paso.
+4. En **Settings → Pages**, pon **Source = GitHub Actions**.
 
-## 3. Correr el frontend en local
-
-```bash
-cd frontend
-cp .env.example .env.local
-# Edita .env.local con tu VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
-npm install
-npm run dev
-```
-
-Abre `http://localhost:5173`, inicia sesión con Google, y luego márcate como admin con el SQL del paso 1.7.
-
-## 4. Desplegar a GitHub Pages
-
-1. Sube este repo a GitHub (si el nombre del repo no es `carrito-de-compras`, ajusta `base` en `frontend/vite.config.ts`).
-2. En **Settings → Secrets and variables → Actions**, crea los secrets `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
-3. En **Settings → Pages**, pon **Source = GitHub Actions**.
-4. Haz push a `main` — el workflow `.github/workflows/deploy.yml` compila y publica automáticamente.
-5. Actualiza en Google Cloud Console y en Supabase las URLs de producción (ya no solo localhost) si no lo hiciste antes.
+5. Haz push a `main` — el workflow `.github/workflows/deploy.yml` compila y publica automáticamente en `https://hugoarias.github.io/shop/`.
 
 ## Notas sobre el free tier
 
 - El proyecto de Supabase se **pausa tras ~7 días de inactividad**. Se reactiva en segundos desde el dashboard, sin pérdida de datos. Si se diera de baja tras una pausa muy prolongada, el esquema se reconstruye con `supabase db push` usando las migraciones versionadas en este repo.
 - GitHub Pages y GitHub Actions son gratis sin límite de tiempo para repos públicos.
 - El `anon key` de Supabase es público por diseño (queda visible en el código del frontend); la seguridad real la dan las políticas de Row Level Security en `supabase/migrations/0002_rls_policies.sql`.
+- Google Cloud OAuth es gratis sin tarjeta mientras no se usen scopes sensibles (nuestro login básico no los requiere).
 
 ## Estructura
 
 ```
-frontend/           App React + Vite + Tailwind
+frontend/           App React + Vite + Tailwind (incluye public/privacy.html)
 supabase/migrations/ Esquema SQL versionado (tablas, RLS, checkout atómico, reporte de ventas)
 .github/workflows/  Despliegue automático a GitHub Pages
 ```
