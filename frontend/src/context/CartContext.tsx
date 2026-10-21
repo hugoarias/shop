@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Product, ProductVariant } from '../types/database.types'
-import { calcLineTotal } from '../lib/pricing'
+import { groupCartItems } from '../lib/pricing'
 
 export interface CartItem {
   product: Product
@@ -86,11 +86,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items])
   const totalAmount = useMemo(
-    () =>
-      items.reduce(
-        (sum, item) => sum + calcLineTotal(item.product.price_tiers, item.product.price, item.quantity),
-        0,
-      ),
+    () => groupCartItems(items).reduce((sum, group) => sum + group.subtotal, 0),
     [items],
   )
 

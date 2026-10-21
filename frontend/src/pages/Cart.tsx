@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { CartItemRow } from '../components/CartItemRow'
 import { formatCurrency } from '../lib/format'
+import { groupCartItems } from '../lib/pricing'
 
 export function Cart() {
   const { items, totalAmount } = useCart()
+  const groups = groupCartItems(items)
 
   if (items.length === 0) {
     return (
@@ -22,8 +24,31 @@ export function Cart() {
     <div className="mx-auto max-w-2xl p-4">
       <h1 className="font-display mb-6 text-3xl text-brand-primary">Carrito</h1>
       <div className="rounded-xl border border-gray-200 bg-white p-4">
-        {items.map((item) => (
-          <CartItemRow key={`${item.product.id}:${item.variant?.id ?? 'base'}`} item={item} />
+        {groups.map((group) => (
+          <div key={group.key}>
+            {group.items.map((item) => (
+              <CartItemRow
+                key={`${item.product.id}:${item.variant?.id ?? 'base'}`}
+                item={item}
+                showPrice={!group.isCombo}
+              />
+            ))}
+            {group.isCombo && (
+              <div className="flex items-center justify-between border-b border-gray-200 pb-3 pt-1 last:border-0">
+                <span className="text-sm text-gray-500">Subtotal {group.product.name}</span>
+                <span className="text-right">
+                  <span className="block font-semibold text-gray-900">
+                    {formatCurrency(group.subtotal)}
+                  </span>
+                  {group.savings > 0 && (
+                    <span className="block text-xs font-medium text-green-600">
+                      Ahorras {formatCurrency(group.savings)}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between">

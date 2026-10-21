@@ -4,7 +4,7 @@ import { formatCurrency } from '../lib/format'
 import { calcLineTotal } from '../lib/pricing'
 import { ZoomableImage } from './ZoomableImage'
 
-export function CartItemRow({ item }: { item: CartItem }) {
+export function CartItemRow({ item, showPrice = true }: { item: CartItem; showPrice?: boolean }) {
   const { setQuantity, removeItem } = useCart()
   const { product, variant, quantity } = item
   const variantId = variant?.id ?? null
@@ -51,14 +51,16 @@ export function CartItemRow({ item }: { item: CartItem }) {
           </button>
         </div>
 
-        <span className="text-right sm:w-24">
-          <span className="block font-semibold text-gray-900">{formatCurrency(lineTotal)}</span>
-          {savings > 0 && (
-            <span className="block text-xs font-medium text-green-600">
-              Ahorras {formatCurrency(savings)}
-            </span>
-          )}
-        </span>
+        {showPrice && (
+          <span className="text-right sm:w-24">
+            <span className="block font-semibold text-gray-900">{formatCurrency(lineTotal)}</span>
+            {savings > 0 && (
+              <span className="block text-xs font-medium text-green-600">
+                Ahorras {formatCurrency(savings)}
+              </span>
+            )}
+          </span>
+        )}
 
         <button
           onClick={() => removeItem(product.id, variantId)}

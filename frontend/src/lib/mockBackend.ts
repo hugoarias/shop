@@ -388,6 +388,25 @@ export const mockApi = {
       }
     }
 
+    // Agrega la cantidad por producto (sumando variantes) para que los combos
+    // crucen variantes, y reparte el total del combo proporcionalmente entre
+    // las líneas de ese producto — mismo algoritmo que checkout() en SQL.
+    const productTotals = new Map<string, { totalQty: number; target: number; allocated: number; remaining: number }>()
+    for (const { product_id, quantity } of cartItems) {
+      const entry = productTotals.get(product_id)
+      if (entry) {
+        entry.totalQty += quantity
+        entry.remaining += 1
+      } else {
+        productTotals.set(product_id, { totalQty: quantity, target: 0, allocated: 0, remaining: 1 })
+      }
+    }
+    for (const [product_id, entry] of productTotals) {
+      const product = db.products.find((p) => p.id === product_id)!
+      const tiers = db.productPriceTiers.filter((t) => t.product_id === product_id)
+      entry.target = calcLineTotal(tiers, product.price, entry.totalQty)
+    }
+
     let total = 0
     const items: OrderWithItems['order_items'] = []
 
@@ -405,8 +424,15 @@ export const mockApi = {
         product.updated_at = new Date().toISOString()
       }
 
-      const tiers = db.productPriceTiers.filter((t) => t.product_id === product_id)
-      const lineTotal = calcLineTotal(tiers, product.price, quantity)
+      const pt = productTotals.get(product_id)!
+      pt.remaining -= 1
+      let lineTotal: number
+      if (pt.remaining === 0) {
+        lineTotal = Math.round((pt.target - pt.allocated) * 100) / 100
+      } else {
+        lineTotal = Math.round(((pt.target * quantity) / pt.totalQty) * 100) / 100
+        pt.allocated += lineTotal
+      }
       total += lineTotal
       items.push({
         id: crypto.randomUUID(),

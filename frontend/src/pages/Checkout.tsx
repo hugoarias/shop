@@ -4,12 +4,13 @@ import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { formatCurrency } from '../lib/format'
-import { calcLineTotal } from '../lib/pricing'
+import { groupCartItems } from '../lib/pricing'
 
 const MAX_PROOF_SIZE = 5 * 1024 * 1024
 
 export function Checkout() {
   const { items, totalAmount, clear } = useCart()
+  const groups = groupCartItems(items)
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
@@ -83,20 +84,37 @@ export function Checkout() {
         <p className="mb-4 font-medium text-gray-900">{profile?.full_name ?? 'Cargando…'}</p>
 
         <ul className="mb-4 divide-y divide-gray-100">
-          {items.map((item) => (
-            <li
-              key={`${item.product.id}:${item.variant?.id ?? 'base'}`}
-              className="flex justify-between py-2 text-sm"
-            >
-              <span>
-                {item.quantity} × {item.product.name}
-                {item.variant && ` (${item.variant.name})`}
-              </span>
-              <span>
-                {formatCurrency(calcLineTotal(item.product.price_tiers, item.product.price, item.quantity))}
-              </span>
-            </li>
-          ))}
+          {groups.map((group) =>
+            group.isCombo ? (
+              <li key={group.key} className="py-2 text-sm">
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map((item) => (
+                    <span key={`${item.product.id}:${item.variant?.id ?? 'base'}`}>
+                      {item.quantity} × {item.product.name}
+                      {item.variant && ` (${item.variant.name})`}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 flex justify-between font-medium">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(group.subtotal)}</span>
+                </div>
+              </li>
+            ) : (
+              group.items.map((item) => (
+                <li
+                  key={`${item.product.id}:${item.variant?.id ?? 'base'}`}
+                  className="flex justify-between py-2 text-sm"
+                >
+                  <span>
+                    {item.quantity} × {item.product.name}
+                    {item.variant && ` (${item.variant.name})`}
+                  </span>
+                  <span>{formatCurrency(group.subtotal)}</span>
+                </li>
+              ))
+            ),
+          )}
         </ul>
 
         <div className="flex items-center justify-between border-t border-gray-200 pt-3">
