@@ -10,6 +10,7 @@ export function ProductCard({ product }: { product: Product }) {
   const { showToast } = useToast()
   const activeVariants = (product.variants ?? []).filter((v) => v.is_active)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+  const cheapestTier = (product.price_tiers ?? []).slice().sort((a, b) => a.min_quantity - b.min_quantity)[0]
 
   const selectedVariant = product.has_variants
     ? (activeVariants.find((v) => v.id === selectedVariantId) ?? null)
@@ -65,6 +66,12 @@ export function ProductCard({ product }: { product: Product }) {
             </span>
           )}
         </div>
+
+        {cheapestTier && (
+          <span className="inline-block w-fit rounded-md bg-brand-secondary/10 px-2 py-0.5 text-xs font-semibold text-brand-secondary">
+            {cheapestTier.min_quantity} x {formatCurrency(cheapestTier.bundle_price)}
+          </span>
+        )}
 
         {product.has_variants && (
           <div className="flex flex-wrap gap-1.5">

@@ -20,6 +20,15 @@ export interface ProductVariant {
   updated_at: string
 }
 
+export interface PriceTier {
+  id: string
+  product_id: string
+  min_quantity: number
+  bundle_price: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -30,6 +39,7 @@ export interface Product {
   is_active: boolean
   has_variants: boolean
   variants?: ProductVariant[]
+  price_tiers?: PriceTier[]
   created_at: string
   updated_at: string
 }
@@ -54,6 +64,7 @@ export interface OrderItem {
   variant_name: string | null
   quantity: number
   unit_price: number
+  line_total: number | null
 }
 
 export interface OrderWithItems extends Order {

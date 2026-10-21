@@ -16,6 +16,12 @@ interface VariantRow {
   stock_quantity: string
 }
 
+interface PriceTierRow {
+  id?: string
+  min_quantity: string
+  bundle_price: string
+}
+
 export function AdminProductForm() {
   const { id } = useParams()
   const isEditing = Boolean(id)
@@ -26,6 +32,8 @@ export function AdminProductForm() {
   const [hasVariants, setHasVariants] = useState(false)
   const [variantRows, setVariantRows] = useState<VariantRow[]>([])
   const [originalVariantIds, setOriginalVariantIds] = useState<string[]>([])
+  const [tierRows, setTierRows] = useState<PriceTierRow[]>([])
+  const [originalTierIds, setOriginalTierIds] = useState<string[]>([])
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -51,6 +59,11 @@ export function AdminProductForm() {
         const variants = (product.variants ?? []).filter((v) => v.is_active)
         setVariantRows(variants.map((v) => ({ id: v.id, name: v.name, stock_quantity: String(v.stock_quantity) })))
         setOriginalVariantIds(variants.map((v) => v.id))
+        const tiers = product.price_tiers ?? []
+        setTierRows(
+          tiers.map((t) => ({ id: t.id, min_quantity: String(t.min_quantity), bundle_price: String(t.bundle_price) })),
+        )
+        setOriginalTierIds(tiers.map((t) => t.id))
       })
       .catch((err: Error) => setError(err.message))
   }, [id, isEditing])
@@ -72,6 +85,18 @@ export function AdminProductForm() {
 
   function addVariantRow() {
     setVariantRows((rows) => [...rows, { name: '', stock_quantity: '0' }])
+  }
+
+  function updateTierRow(index: number, patch: Partial<PriceTierRow>) {
+    setTierRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  }
+
+  function removeTierRow(index: number) {
+    setTierRows((rows) => rows.filter((_, i) => i !== index))
+  }
+
+  function addTierRow() {
+    setTierRows((rows) => [...rows, { min_quantity: '', bundle_price: '' }])
   }
 
   async function uploadImageIfNeeded(): Promise<string | null> {
@@ -105,6 +130,27 @@ export function AdminProductForm() {
     }
   }
 
+  async function saveTiers(productId: string) {
+    const currentIds = new Set<string>()
+
+    for (const row of tierRows) {
+      const min_quantity = Number(row.min_quantity)
+      const bundle_price = Number(row.bundle_price)
+      if (!min_quantity || min_quantity < 2 || Number.isNaN(bundle_price)) continue
+      if (row.id) {
+        currentIds.add(row.id)
+        await api.updatePriceTier(row.id, { min_quantity, bundle_price })
+      } else {
+        await api.createPriceTier(productId, { min_quantity, bundle_price })
+      }
+    }
+
+    const removedIds = originalTierIds.filter((tid) => !currentIds.has(tid))
+    for (const tierId of removedIds) {
+      await api.deletePriceTier(tierId)
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -123,6 +169,7 @@ export function AdminProductForm() {
       if (hasVariants) {
         await saveVariants(productId)
       }
+      await saveTiers(productId)
 
       navigate('/admin/productos')
     } catch (err) {
@@ -235,6 +282,48 @@ export function AdminProductForm() {
             </button>
           </div>
         )}
+
+        <div className="space-y-2 rounded-md border border-gray-200 p-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Precio por cantidad (ej. 3x25Bs)
+          </label>
+          {tierRows.map((row, index) => (
+            <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+              <input
+                type="number"
+                min="2"
+                step="1"
+                placeholder="Cantidad mínima"
+                value={row.min_quantity}
+                onChange={(e) => updateTierRow(index, { min_quantity: e.target.value })}
+                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Precio del paquete (Bs.)"
+                value={row.bundle_price}
+                onChange={(e) => updateTierRow(index, { bundle_price: e.target.value })}
+                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => removeTierRow(index)}
+                className="text-sm font-medium text-red-600 hover:underline"
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addTierRow}
+            className="text-sm font-medium text-brand-secondary hover:underline"
+          >
+            + Agregar precio por cantidad
+          </button>
+        </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Imagen</label>

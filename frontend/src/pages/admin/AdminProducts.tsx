@@ -80,6 +80,11 @@ export function AdminProducts() {
                         Con variantes
                       </span>
                     )}
+                    {(product.price_tiers?.length ?? 0) > 0 && (
+                      <span className="ml-2 rounded-full bg-brand-primary/10 px-2 py-0.5 text-xs font-medium text-brand-primary">
+                        Con combos
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3">{formatCurrency(product.price)}</td>

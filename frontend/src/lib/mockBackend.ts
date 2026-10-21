@@ -1,11 +1,13 @@
 import type {
   Order,
   OrderWithItems,
+  PriceTier,
   Product,
   ProductVariant,
   Profile,
   SalesReportRow,
 } from '../types/database.types'
+import { calcLineTotal } from './pricing'
 
 /**
  * Backend falso en memoria (persistido en localStorage) para previsualizar la app
@@ -28,6 +30,7 @@ function placeholderImage(label: string, bg: string): string {
 interface MockDb {
   products: Product[]
   productVariants: ProductVariant[]
+  productPriceTiers: PriceTier[]
   orders: OrderWithItems[]
   signedIn: boolean
 }
@@ -60,7 +63,7 @@ function seedDb(): MockDb {
       {
         id: 'prod-2',
         name: 'Taza AAB',
-        description: 'Taza de cerámica con el logo de AIESEC Alumni Bolivia.',
+        description: 'Taza de cerámica con el logo de AIESEC Alumni Bolivia. Lleva 3 y paga menos.',
         price: 45,
         image_url: placeholderImage('Taza AAB', '0192CC'),
         stock_quantity: 15,
@@ -100,6 +103,9 @@ function seedDb(): MockDb {
       { id: 'var-3', product_id: 'prod-1', name: 'L', stock_quantity: 0, is_active: true, sort_order: 3, created_at: now, updated_at: now },
       { id: 'var-4', product_id: 'prod-1', name: 'XL', stock_quantity: 2, is_active: true, sort_order: 4, created_at: now, updated_at: now },
     ],
+    productPriceTiers: [
+      { id: 'tier-1', product_id: 'prod-2', min_quantity: 3, bundle_price: 120, created_at: now, updated_at: now },
+    ],
     orders: [],
     signedIn: false,
   }
@@ -110,8 +116,13 @@ function load(): MockDb {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return seedDb()
     const parsed = JSON.parse(raw) as Partial<MockDb>
-    // Compatibilidad con localStorage de versiones anteriores sin variantes.
-    if (!parsed.productVariants || !parsed.products?.[0] || !('has_variants' in parsed.products[0])) {
+    // Compatibilidad con localStorage de versiones anteriores sin variantes/tiers.
+    if (
+      !parsed.productVariants ||
+      !parsed.productPriceTiers ||
+      !parsed.products?.[0] ||
+      !('has_variants' in parsed.products[0])
+    ) {
       return seedDb()
     }
     return parsed as MockDb
@@ -134,12 +145,13 @@ function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
-function withVariants(product: Product): Product {
+function withExtras(product: Product): Product {
   return {
     ...product,
     variants: db.productVariants
       .filter((v) => v.product_id === product.id)
       .sort((a, b) => a.sort_order - b.sort_order),
+    price_tiers: db.productPriceTiers.filter((t) => t.product_id === product.id),
   }
 }
 
@@ -176,16 +188,16 @@ export const mockApi = {
 
   // --- Productos ---
   async listActiveProducts(): Promise<Product[]> {
-    return delay(db.products.filter((p) => p.is_active).map(withVariants))
+    return delay(db.products.filter((p) => p.is_active).map(withExtras))
   },
   async listAllProducts(): Promise<Product[]> {
     return delay(
-      [...db.products].sort((a, b) => b.created_at.localeCompare(a.created_at)).map(withVariants),
+      [...db.products].sort((a, b) => b.created_at.localeCompare(a.created_at)).map(withExtras),
     )
   },
   async getProduct(id: string): Promise<Product | undefined> {
     const product = db.products.find((p) => p.id === id)
-    return delay(product ? withVariants(product) : undefined)
+    return delay(product ? withExtras(product) : undefined)
   },
   async createProduct(
     payload: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'is_active' | 'variants'>,
@@ -256,6 +268,34 @@ export const mockApi = {
     return delay(undefined)
   },
 
+  // --- Precios por cantidad (combos) ---
+  async createPriceTier(productId: string, payload: { min_quantity: number; bundle_price: number }) {
+    const now = new Date().toISOString()
+    const tier: PriceTier = {
+      id: crypto.randomUUID(),
+      product_id: productId,
+      min_quantity: payload.min_quantity,
+      bundle_price: payload.bundle_price,
+      created_at: now,
+      updated_at: now,
+    }
+    db.productPriceTiers.push(tier)
+    persist()
+    return delay(tier)
+  },
+  async updatePriceTier(id: string, payload: Partial<PriceTier>) {
+    db.productPriceTiers = db.productPriceTiers.map((t) =>
+      t.id === id ? { ...t, ...payload, updated_at: new Date().toISOString() } : t,
+    )
+    persist()
+    return delay(undefined)
+  },
+  async deletePriceTier(id: string) {
+    db.productPriceTiers = db.productPriceTiers.filter((t) => t.id !== id)
+    persist()
+    return delay(undefined)
+  },
+
   // --- Checkout / órdenes ---
   async checkout(
     cartItems: { product_id: string; quantity: number; variant_id: string | null }[],
@@ -292,7 +332,9 @@ export const mockApi = {
         product.updated_at = new Date().toISOString()
       }
 
-      total += product.price * quantity
+      const tiers = db.productPriceTiers.filter((t) => t.product_id === product_id)
+      const lineTotal = calcLineTotal(tiers, product.price, quantity)
+      total += lineTotal
       items.push({
         id: crypto.randomUUID(),
         order_id: '',
@@ -301,6 +343,7 @@ export const mockApi = {
         variant_name: unitVariantName,
         quantity,
         unit_price: product.price,
+        line_total: lineTotal,
         products: { name: product.name, image_url: product.image_url },
       })
     }

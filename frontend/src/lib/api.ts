@@ -3,6 +3,7 @@ import { mockApi } from './mockBackend'
 import type {
   Product,
   ProductVariant,
+  PriceTier,
   Profile,
   OrderWithItems,
   SalesReportRow,
@@ -66,7 +67,7 @@ export const api = {
     if (isMock) return mockApi.listActiveProducts()
     const { data, error } = await supabase!
       .from('products')
-      .select('*, variants:product_variants(*)')
+      .select('*, variants:product_variants(*), price_tiers:product_price_tiers(*)')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .order('sort_order', { foreignTable: 'product_variants' })
@@ -78,7 +79,7 @@ export const api = {
     if (isMock) return mockApi.listAllProducts()
     const { data, error } = await supabase!
       .from('products')
-      .select('*, variants:product_variants(*)')
+      .select('*, variants:product_variants(*), price_tiers:product_price_tiers(*)')
       .order('created_at', { ascending: false })
       .order('sort_order', { foreignTable: 'product_variants' })
     if (error) throw error
@@ -89,7 +90,7 @@ export const api = {
     if (isMock) return (await mockApi.getProduct(id)) ?? null
     const { data, error } = await supabase!
       .from('products')
-      .select('*, variants:product_variants(*)')
+      .select('*, variants:product_variants(*), price_tiers:product_price_tiers(*)')
       .eq('id', id)
       .order('sort_order', { foreignTable: 'product_variants' })
       .single()
@@ -155,6 +156,29 @@ export const api = {
   async deleteVariant(id: string) {
     if (isMock) return mockApi.deleteVariant(id)
     const { error } = await supabase!.from('product_variants').delete().eq('id', id)
+    if (error) throw error
+  },
+
+  async createPriceTier(productId: string, payload: { min_quantity: number; bundle_price: number }) {
+    if (isMock) return mockApi.createPriceTier(productId, payload)
+    const { error } = await supabase!
+      .from('product_price_tiers')
+      .insert({ product_id: productId, ...payload })
+    if (error) throw error
+  },
+
+  async updatePriceTier(
+    id: string,
+    payload: Partial<Pick<PriceTier, 'min_quantity' | 'bundle_price'>>,
+  ) {
+    if (isMock) return mockApi.updatePriceTier(id, payload)
+    const { error } = await supabase!.from('product_price_tiers').update(payload).eq('id', id)
+    if (error) throw error
+  },
+
+  async deletePriceTier(id: string) {
+    if (isMock) return mockApi.deletePriceTier(id)
+    const { error } = await supabase!.from('product_price_tiers').delete().eq('id', id)
     if (error) throw error
   },
 

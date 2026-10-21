@@ -50,7 +50,7 @@ export function MyOrders() {
                     {item.quantity} × {item.products?.name ?? 'Producto eliminado'}
                     {item.variant_name && ` (talla ${item.variant_name})`}
                   </span>
-                  <span>{formatCurrency(item.quantity * item.unit_price)}</span>
+                  <span>{formatCurrency(item.line_total ?? item.quantity * item.unit_price)}</span>
                 </li>
               ))}
             </ul>

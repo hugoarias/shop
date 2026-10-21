@@ -1,6 +1,7 @@
 import type { CartItem } from '../context/CartContext'
 import { useCart } from '../context/CartContext'
 import { formatCurrency } from '../lib/format'
+import { calcLineTotal } from '../lib/pricing'
 import { ZoomableImage } from './ZoomableImage'
 
 export function CartItemRow({ item }: { item: CartItem }) {
@@ -8,6 +9,8 @@ export function CartItemRow({ item }: { item: CartItem }) {
   const { product, variant, quantity } = item
   const variantId = variant?.id ?? null
   const maxQty = variant ? variant.stock_quantity : product.stock_quantity
+  const lineTotal = calcLineTotal(product.price_tiers, product.price, quantity)
+  const savings = product.price * quantity - lineTotal
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-4 last:border-0 sm:gap-4">
@@ -48,8 +51,13 @@ export function CartItemRow({ item }: { item: CartItem }) {
           </button>
         </div>
 
-        <span className="font-semibold text-gray-900 sm:w-24 sm:text-right">
-          {formatCurrency(product.price * quantity)}
+        <span className="text-right sm:w-24">
+          <span className="block font-semibold text-gray-900">{formatCurrency(lineTotal)}</span>
+          {savings > 0 && (
+            <span className="block text-xs font-medium text-green-600">
+              Ahorras {formatCurrency(savings)}
+            </span>
+          )}
         </span>
 
         <button

@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { formatCurrency } from '../lib/format'
+import { calcLineTotal } from '../lib/pricing'
 
 export function Checkout() {
   const { items, totalAmount, clear } = useCart()
@@ -61,7 +62,9 @@ export function Checkout() {
                 {item.quantity} × {item.product.name}
                 {item.variant && ` (talla ${item.variant.name})`}
               </span>
-              <span>{formatCurrency(item.quantity * item.product.price)}</span>
+              <span>
+                {formatCurrency(calcLineTotal(item.product.price_tiers, item.product.price, item.quantity))}
+              </span>
             </li>
           ))}
         </ul>
