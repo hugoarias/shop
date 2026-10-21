@@ -56,7 +56,7 @@ export function ProductCard({ product }: { product: Product }) {
         {product.description && (
           <p className="line-clamp-2 text-sm text-gray-500">{product.description}</p>
         )}
-        <div className="mt-auto flex items-center justify-between pt-2">
+        <div className="mt-auto flex flex-col gap-0.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="font-display text-xl text-brand-primary">
             {formatCurrency(product.price)}
           </span>

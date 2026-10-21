@@ -213,6 +213,16 @@ export const api = {
     return data as unknown as OrderWithItems[]
   },
 
+  async listAllOrders(): Promise<OrderWithItems[]> {
+    if (isMock) return mockApi.listMyOrders()
+    const { data, error } = await supabase!
+      .from('orders')
+      .select('*, order_items(*, products(name, image_url))')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data as unknown as OrderWithItems[]
+  },
+
   async listSalesReport(): Promise<SalesReportRow[]> {
     if (isMock) return mockApi.listSalesReport()
     const { data, error } = await supabase!.from('sales_report').select('*')
