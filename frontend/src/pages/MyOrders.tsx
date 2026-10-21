@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import type { OrderWithItems, PaymentStatus } from '../types/database.types'
 import { formatCurrency, formatDate } from '../lib/format'
@@ -20,6 +20,7 @@ function PaymentSection({
   const [uploading, setUploading] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const status = statusLabels[order.payment_status]
 
   async function submitProof() {
@@ -59,11 +60,19 @@ function PaymentSection({
       {order.payment_status === 'pending_payment' && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*,.pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="text-xs"
+            className="hidden"
           />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-primary hover:text-brand-primary"
+          >
+            {file ? 'Cambiar archivo' : 'Elegir archivo'}
+          </button>
+          {file && <span className="text-xs text-gray-500">{file.name}</span>}
           <button
             onClick={() => void submitProof()}
             disabled={!file || uploading}

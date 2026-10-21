@@ -129,8 +129,15 @@ export function Checkout() {
           type="file"
           accept="image/*,.pdf"
           onChange={handleFileChange}
-          className="w-full text-sm"
+          className="hidden"
         />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:border-brand-primary hover:text-brand-primary"
+        >
+          {proofFile ? 'Cambiar archivo' : 'Elegir archivo'}
+        </button>
         {proofFile && <p className="mt-1 text-xs text-gray-500">Seleccionado: {proofFile.name}</p>}
       </div>
 
