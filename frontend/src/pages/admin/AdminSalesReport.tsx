@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
-import type { OrderWithItems, SalesReportRow } from '../../types/database.types'
+import type { OrderWithItems, PaymentStatus, SalesReportRow } from '../../types/database.types'
 import { formatCurrency, formatDate } from '../../lib/format'
 
 interface FlatItem {
@@ -8,6 +8,8 @@ interface FlatItem {
   created_at: string
   buyer_name: string
   buyer_email: string
+  payment_status: PaymentStatus
+  payment_proof_path: string | null
   product_id: string
   product_name: string
   variant_name: string | null
@@ -16,12 +18,26 @@ interface FlatItem {
   line_total: number
 }
 
+interface OrderGroup {
+  order_id: string
+  created_at: string
+  payment_status: PaymentStatus
+  payment_proof_path: string | null
+  items: FlatItem[]
+}
+
 interface ProductSummaryRow {
   key: string
   product_name: string
   variant_name: string | null
   units: number
   revenue: number
+}
+
+const statusLabels: Record<PaymentStatus, { label: string; className: string }> = {
+  pending_payment: { label: 'Pendiente de pago', className: 'bg-red-100 text-red-700' },
+  pending_verification: { label: 'Pendiente de verificación', className: 'bg-amber-100 text-amber-700' },
+  verified: { label: 'Verificado', className: 'bg-green-100 text-green-700' },
 }
 
 function flattenItems(orders: OrderWithItems[]): FlatItem[] {
@@ -34,6 +50,8 @@ function flattenItems(orders: OrderWithItems[]): FlatItem[] {
         created_at: order.created_at,
         buyer_name: order.buyer_name,
         buyer_email: order.buyer_email,
+        payment_status: order.payment_status,
+        payment_proof_path: order.payment_proof_path,
         product_id: item.product_id,
         product_name: item.products?.name ?? 'Producto eliminado',
         variant_name: item.variant_name,
@@ -44,6 +62,25 @@ function flattenItems(orders: OrderWithItems[]): FlatItem[] {
     }
   }
   return items
+}
+
+function groupByOrder(items: FlatItem[]): OrderGroup[] {
+  const byOrder = new Map<string, OrderGroup>()
+  for (const item of items) {
+    const existing = byOrder.get(item.order_id)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      byOrder.set(item.order_id, {
+        order_id: item.order_id,
+        created_at: item.created_at,
+        payment_status: item.payment_status,
+        payment_proof_path: item.payment_proof_path,
+        items: [item],
+      })
+    }
+  }
+  return [...byOrder.values()].sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
 function buildProductSummary(items: FlatItem[]): ProductSummaryRow[] {
@@ -73,12 +110,23 @@ function toCsvValue(value: string | number): string {
 }
 
 function downloadCsv(items: FlatItem[]) {
-  const header = ['Fecha', 'Comprador', 'Correo', 'Producto', 'Variante', 'Cantidad', 'Precio unitario', 'Total línea']
+  const header = [
+    'Fecha',
+    'Comprador',
+    'Correo',
+    'Estado de pago',
+    'Producto',
+    'Variante',
+    'Cantidad',
+    'Precio unitario',
+    'Total línea',
+  ]
   const lines = items.map((item) =>
     [
       formatDate(item.created_at),
       item.buyer_name,
       item.buyer_email,
+      statusLabels[item.payment_status].label,
       item.product_name,
       item.variant_name ?? '',
       item.quantity,
@@ -98,6 +146,69 @@ function downloadCsv(items: FlatItem[]) {
   URL.revokeObjectURL(url)
 }
 
+function OrderProofActions({
+  group,
+  onVerified,
+}: {
+  group: OrderGroup
+  onVerified: (orderId: string) => void
+}) {
+  const [viewing, setViewing] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function verComprobante() {
+    if (!group.payment_proof_path) return
+    setViewing(true)
+    setError(null)
+    try {
+      const url = await api.getPaymentProofUrl(group.payment_proof_path)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo abrir el comprobante')
+    } finally {
+      setViewing(false)
+    }
+  }
+
+  async function marcarVerificado() {
+    setVerifying(true)
+    setError(null)
+    try {
+      await api.verifyPayment(group.order_id)
+      onVerified(group.order_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo verificar el pago')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {group.payment_proof_path && (
+        <button
+          onClick={() => void verComprobante()}
+          disabled={viewing}
+          className="text-xs font-medium text-brand-secondary hover:underline disabled:opacity-60"
+        >
+          {viewing ? 'Abriendo…' : 'Ver comprobante'}
+        </button>
+      )}
+      {group.payment_status === 'pending_verification' && (
+        <button
+          onClick={() => void marcarVerificado()}
+          disabled={verifying}
+          className="rounded-md bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60"
+        >
+          {verifying ? 'Guardando…' : 'Marcar como verificado'}
+        </button>
+      )}
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
+  )
+}
+
 export function AdminSalesReport() {
   const [rows, setRows] = useState<SalesReportRow[]>([])
   const [orders, setOrders] = useState<OrderWithItems[]>([])
@@ -115,17 +226,28 @@ export function AdminSalesReport() {
       .finally(() => setLoading(false))
   }, [])
 
+  function markOrderVerified(orderId: string) {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, payment_status: 'verified' } : o)),
+    )
+  }
+
   const items = useMemo(() => flattenItems(orders), [orders])
   const productSummary = useMemo(() => buildProductSummary(items), [items])
-  const itemsByBuyer = useMemo(() => {
-    const map = new Map<string, FlatItem[]>()
+  const pendingVerificationCount = useMemo(
+    () => new Set(items.filter((i) => i.payment_status === 'pending_verification').map((i) => i.order_id)).size,
+    [items],
+  )
+  const groupsByBuyer = useMemo(() => {
+    const byBuyer = new Map<string, FlatItem[]>()
     for (const item of items) {
-      const list = map.get(item.buyer_email) ?? []
+      const list = byBuyer.get(item.buyer_email) ?? []
       list.push(item)
-      map.set(item.buyer_email, list)
+      byBuyer.set(item.buyer_email, list)
     }
-    for (const list of map.values()) {
-      list.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    const map = new Map<string, OrderGroup[]>()
+    for (const [email, buyerItems] of byBuyer) {
+      map.set(email, groupByOrder(buyerItems))
     }
     return map
   }, [items])
@@ -145,6 +267,12 @@ export function AdminSalesReport() {
           <h1 className="font-display text-3xl text-brand-primary">Reporte de ventas</h1>
           <p className="text-sm text-gray-500">
             Total vendido: <span className="font-semibold text-gray-900">{formatCurrency(grandTotal)}</span>
+            {pendingVerificationCount > 0 && (
+              <span className="ml-3 text-amber-700">
+                {pendingVerificationCount} pedido{pendingVerificationCount === 1 ? '' : 's'} pendiente
+                {pendingVerificationCount === 1 ? '' : 's'} de verificación
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -171,7 +299,7 @@ export function AdminSalesReport() {
           <tbody className="divide-y divide-gray-100">
             {rows.map((row) => {
               const isOpen = expanded === row.buyer_email
-              const buyerItems = itemsByBuyer.get(row.buyer_email) ?? []
+              const buyerGroups = groupsByBuyer.get(row.buyer_email) ?? []
               return (
                 <Fragment key={row.buyer_email}>
                   <tr
@@ -189,30 +317,45 @@ export function AdminSalesReport() {
                     <tr key={`${row.buyer_email}-detail`}>
                       <td></td>
                       <td colSpan={5} className="bg-gray-50 px-4 py-3">
-                        <table className="w-full text-left text-xs">
-                          <thead className="text-gray-500">
-                            <tr>
-                              <th className="py-1 pr-3">Fecha</th>
-                              <th className="py-1 pr-3">Producto</th>
-                              <th className="py-1 pr-3">Variante</th>
-                              <th className="py-1 pr-3">Cant.</th>
-                              <th className="py-1 pr-3">Precio unit.</th>
-                              <th className="py-1 pr-3">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {buyerItems.map((item, index) => (
-                              <tr key={`${item.order_id}-${index}`}>
-                                <td className="py-1.5 pr-3 text-gray-500">{formatDate(item.created_at)}</td>
-                                <td className="py-1.5 pr-3 text-gray-900">{item.product_name}</td>
-                                <td className="py-1.5 pr-3 text-gray-500">{item.variant_name ?? '—'}</td>
-                                <td className="py-1.5 pr-3">{item.quantity}</td>
-                                <td className="py-1.5 pr-3">{formatCurrency(item.unit_price)}</td>
-                                <td className="py-1.5 pr-3 font-medium">{formatCurrency(item.line_total)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div className="space-y-3">
+                          {buyerGroups.map((group) => (
+                            <div key={group.order_id} className="rounded-md border border-gray-200 bg-white p-2">
+                              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{formatDate(group.created_at)}</span>
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusLabels[group.payment_status].className}`}
+                                  >
+                                    {statusLabels[group.payment_status].label}
+                                  </span>
+                                </div>
+                                <OrderProofActions group={group} onVerified={markOrderVerified} />
+                              </div>
+                              <table className="w-full text-left text-xs">
+                                <thead className="text-gray-500">
+                                  <tr>
+                                    <th className="py-1 pr-3">Producto</th>
+                                    <th className="py-1 pr-3">Variante</th>
+                                    <th className="py-1 pr-3">Cant.</th>
+                                    <th className="py-1 pr-3">Precio unit.</th>
+                                    <th className="py-1 pr-3">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {group.items.map((item, index) => (
+                                    <tr key={`${item.order_id}-${index}`}>
+                                      <td className="py-1.5 pr-3 text-gray-900">{item.product_name}</td>
+                                      <td className="py-1.5 pr-3 text-gray-500">{item.variant_name ?? '—'}</td>
+                                      <td className="py-1.5 pr-3">{item.quantity}</td>
+                                      <td className="py-1.5 pr-3">{formatCurrency(item.unit_price)}</td>
+                                      <td className="py-1.5 pr-3 font-medium">{formatCurrency(item.line_total)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ))}
+                        </div>
                       </td>
                     </tr>
                   )}

@@ -106,7 +106,32 @@ function seedDb(): MockDb {
     productPriceTiers: [
       { id: 'tier-1', product_id: 'prod-2', min_quantity: 3, bundle_price: 120, created_at: now, updated_at: now },
     ],
-    orders: [],
+    orders: [
+      {
+        id: 'order-historico-1',
+        user_id: MOCK_PROFILE.id,
+        buyer_name: MOCK_PROFILE.full_name ?? '',
+        buyer_email: MOCK_PROFILE.email ?? '',
+        total: 150,
+        status: 'completed',
+        payment_proof_path: null,
+        payment_status: 'pending_payment',
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+        order_items: [
+          {
+            id: 'item-historico-1',
+            order_id: 'order-historico-1',
+            product_id: 'prod-3',
+            variant_id: null,
+            variant_name: null,
+            quantity: 1,
+            unit_price: 150,
+            line_total: 150,
+            products: { name: 'Mochila AAB', image_url: placeholderImage('Mochila AAB', '004789') },
+          },
+        ],
+      },
+    ],
     signedIn: false,
   }
 }
@@ -121,7 +146,8 @@ function load(): MockDb {
       !parsed.productVariants ||
       !parsed.productPriceTiers ||
       !parsed.products?.[0] ||
-      !('has_variants' in parsed.products[0])
+      !('has_variants' in parsed.products[0]) ||
+      !parsed.orders?.every((o) => 'payment_status' in o)
     ) {
       return seedDb()
     }
@@ -157,6 +183,11 @@ function withExtras(product: Product): Product {
 
 type AuthListener = (signedIn: boolean) => void
 const authListeners = new Set<AuthListener>()
+
+// Blobs en memoria para comprobantes/QR de pago — no se persisten en localStorage
+// porque los object URLs no sobreviven un reload; en modo demo alcanza con esto.
+const paymentProofBlobs = new Map<string, string>()
+let paymentQrBlobUrl: string | null = null
 
 export const mockApi = {
   resetDemoData() {
@@ -296,10 +327,52 @@ export const mockApi = {
     return delay(undefined)
   },
 
+  // --- Comprobantes y QR de pago ---
+  async uploadPaymentProof(file: File): Promise<string> {
+    const path = `${MOCK_PROFILE.id}/${crypto.randomUUID()}-${file.name}`
+    paymentProofBlobs.set(path, URL.createObjectURL(file))
+    return delay(path)
+  },
+  async getPaymentProofUrl(path: string): Promise<string> {
+    const url = paymentProofBlobs.get(path)
+    if (!url) throw new Error('Comprobante no encontrado')
+    return delay(url)
+  },
+  async submitPaymentProof(orderId: string, file: File): Promise<void> {
+    const order = db.orders.find((o) => o.id === orderId)
+    if (!order) throw new Error('Pedido no encontrado')
+    if (order.payment_status !== 'pending_payment') {
+      throw new Error('Este pedido ya tiene un comprobante registrado')
+    }
+    const path = await mockApi.uploadPaymentProof(file)
+    order.payment_proof_path = path
+    order.payment_status = 'pending_verification'
+    persist()
+    return delay(undefined)
+  },
+  async verifyPayment(orderId: string): Promise<void> {
+    const order = db.orders.find((o) => o.id === orderId)
+    if (!order) throw new Error('Pedido no encontrado')
+    order.payment_status = 'verified'
+    persist()
+    return delay(undefined)
+  },
+  async uploadPaymentQr(file: File): Promise<void> {
+    paymentQrBlobUrl = URL.createObjectURL(file)
+    return delay(undefined)
+  },
+  async getPaymentQrUrl(): Promise<string | null> {
+    return delay(paymentQrBlobUrl)
+  },
+
   // --- Checkout / órdenes ---
   async checkout(
     cartItems: { product_id: string; quantity: number; variant_id: string | null }[],
+    paymentProofPath: string,
   ): Promise<string> {
+    if (!paymentProofPath) {
+      throw new Error('Debes subir tu comprobante de pago')
+    }
     for (const { product_id, quantity, variant_id } of cartItems) {
       const product = db.products.find((p) => p.id === product_id)
       if (!product) throw new Error(`Producto ${product_id} no disponible`)
@@ -356,6 +429,8 @@ export const mockApi = {
       buyer_email: MOCK_PROFILE.email ?? '',
       total,
       status: 'completed',
+      payment_proof_path: paymentProofPath,
+      payment_status: 'pending_verification',
       created_at: new Date().toISOString(),
       order_items: items.map((item) => ({ ...item, order_id: orderId })),
     }

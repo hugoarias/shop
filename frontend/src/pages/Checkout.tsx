@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
@@ -6,12 +6,24 @@ import { api } from '../lib/api'
 import { formatCurrency } from '../lib/format'
 import { calcLineTotal } from '../lib/pricing'
 
+const MAX_PROOF_SIZE = 5 * 1024 * 1024
+
 export function Checkout() {
   const { items, totalAmount, clear } = useCart()
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    api
+      .getPaymentQrUrl()
+      .then(setQrUrl)
+      .catch(() => setQrUrl(null))
+  }, [])
 
   if (items.length === 0) {
     return (
@@ -24,7 +36,24 @@ export function Checkout() {
     )
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    if (file && file.size > MAX_PROOF_SIZE) {
+      setError('El archivo no puede pesar más de 5 MB')
+      setProofFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    setError(null)
+    setProofFile(file)
+  }
+
   async function confirmarCompra() {
+    if (!proofFile) {
+      setError('Debes subir tu comprobante de pago')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
     const cart_items = items.map((item) => ({
@@ -34,7 +63,8 @@ export function Checkout() {
     }))
 
     try {
-      const orderId = await api.checkout(cart_items)
+      const proofPath = await api.uploadPaymentProof(proofFile)
+      const orderId = await api.checkout(cart_items, proofPath)
       clear()
       navigate('/mis-compras', { state: { newOrderId: orderId } })
     } catch (err) {
@@ -77,14 +107,41 @@ export function Checkout() {
         </div>
       </div>
 
+      <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+        <p className="mb-3 font-semibold text-gray-900">Paga con QR</p>
+        {qrUrl ? (
+          <img src={qrUrl} alt="Código QR de pago" className="mx-auto mb-3 h-56 w-56 rounded-md object-contain" />
+        ) : (
+          <p className="mb-3 text-sm text-gray-500">
+            El QR de pago todavía no está disponible. Contacta a un administrador.
+          </p>
+        )}
+        <p className="mb-2 text-sm text-gray-500">
+          Escanea el QR, realiza el pago por {formatCurrency(totalAmount)} y sube tu comprobante para confirmar
+          la compra.
+        </p>
+
+        <label className="mb-1 mt-3 block text-sm font-medium text-gray-700">
+          Comprobante de pago <span className="text-red-600">*</span>
+        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.pdf"
+          onChange={handleFileChange}
+          className="w-full text-sm"
+        />
+        {proofFile && <p className="mt-1 text-xs text-gray-500">Seleccionado: {proofFile.name}</p>}
+      </div>
+
       {error && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
       <button
         onClick={() => void confirmarCompra()}
-        disabled={submitting}
-        className="mt-4 w-full rounded-md bg-brand-primary px-4 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-60"
+        disabled={submitting || !proofFile}
+        className="mt-4 w-full rounded-md bg-brand-primary px-4 py-3 font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? 'Procesando…' : 'Confirmar compra'}
       </button>

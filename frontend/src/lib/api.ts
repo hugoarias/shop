@@ -9,6 +9,10 @@ import type {
   SalesReportRow,
 } from '../types/database.types'
 
+const PAYMENT_PROOFS_BUCKET = 'payment-proofs'
+const PRODUCT_IMAGES_BUCKET = 'product-images'
+const PAYMENT_QR_PATH = 'settings/payment-qr'
+
 export { isMock }
 
 export interface AuthUser {
@@ -194,11 +198,75 @@ export const api = {
     return data.publicUrl
   },
 
+  async uploadPaymentProof(file: File): Promise<string> {
+    if (isMock) return mockApi.uploadPaymentProof(file)
+    const { data: userData } = await supabase!.auth.getUser()
+    if (!userData.user) throw new Error('Debes iniciar sesión para subir tu comprobante')
+    const ext = file.name.split('.').pop()
+    const path = `${userData.user.id}/${crypto.randomUUID()}.${ext}`
+    const { error } = await supabase!.storage
+      .from(PAYMENT_PROOFS_BUCKET)
+      .upload(path, file, { upsert: false })
+    if (error) throw error
+    return path
+  },
+
+  async getPaymentProofUrl(path: string): Promise<string> {
+    if (isMock) return mockApi.getPaymentProofUrl(path)
+    const { data, error } = await supabase!.storage
+      .from(PAYMENT_PROOFS_BUCKET)
+      .createSignedUrl(path, 300)
+    if (error) throw error
+    return data.signedUrl
+  },
+
+  async submitPaymentProof(orderId: string, file: File): Promise<void> {
+    if (isMock) return mockApi.submitPaymentProof(orderId, file)
+    const path = await api.uploadPaymentProof(file)
+    const { error } = await supabase!.rpc('submit_payment_proof', {
+      p_order_id: orderId,
+      p_payment_proof_path: path,
+    })
+    if (error) throw error
+  },
+
+  async verifyPayment(orderId: string): Promise<void> {
+    if (isMock) return mockApi.verifyPayment(orderId)
+    const { error } = await supabase!
+      .from('orders')
+      .update({ payment_status: 'verified' })
+      .eq('id', orderId)
+    if (error) throw error
+  },
+
+  async uploadPaymentQr(file: File): Promise<void> {
+    if (isMock) return mockApi.uploadPaymentQr(file)
+    const { error } = await supabase!.storage
+      .from(PRODUCT_IMAGES_BUCKET)
+      .upload(PAYMENT_QR_PATH, file, { upsert: true, contentType: file.type })
+    if (error) throw error
+  },
+
+  async getPaymentQrUrl(): Promise<string | null> {
+    if (isMock) return mockApi.getPaymentQrUrl()
+    const { data: files, error } = await supabase!.storage.from(PRODUCT_IMAGES_BUCKET).list('settings')
+    if (error) throw error
+    const qrFile = files?.find((f) => f.name === 'payment-qr')
+    if (!qrFile) return null
+    const { data } = supabase!.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(PAYMENT_QR_PATH)
+    const version = qrFile.updated_at ?? qrFile.created_at ?? ''
+    return `${data.publicUrl}?v=${encodeURIComponent(version)}`
+  },
+
   async checkout(
     cartItems: { product_id: string; quantity: number; variant_id: string | null }[],
+    paymentProofPath: string,
   ): Promise<string> {
-    if (isMock) return mockApi.checkout(cartItems)
-    const { data, error } = await supabase!.rpc('checkout', { cart_items: cartItems })
+    if (isMock) return mockApi.checkout(cartItems, paymentProofPath)
+    const { data, error } = await supabase!.rpc('checkout', {
+      cart_items: cartItems,
+      payment_proof_path: paymentProofPath,
+    })
     if (error) throw error
     return data as string
   },

@@ -45,6 +45,7 @@ export interface Product {
 }
 
 export type OrderStatus = 'completed' | 'cancelled'
+export type PaymentStatus = 'pending_payment' | 'pending_verification' | 'verified'
 
 export interface Order {
   id: string
@@ -53,6 +54,8 @@ export interface Order {
   buyer_email: string
   total: number
   status: OrderStatus
+  payment_proof_path: string | null
+  payment_status: PaymentStatus
   created_at: string
 }
 
